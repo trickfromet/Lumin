@@ -80,9 +80,19 @@ export async function GET(request: NextRequest) {
 
   const enrichedPosts = await Promise.all(
     posts.map(async (post) => {
-      const decryptedContent = post.isEncrypted
-        ? await decryptContent(post.encryptedContent!, post.iv!, post.authTag!)
-        : post.content;
+      let decryptedContent = post.content;
+      if (post.isEncrypted) {
+        try {
+          decryptedContent = await decryptContent(
+            post.encryptedContent!,
+            post.iv!,
+            post.authTag!,
+          );
+        } catch (err) {
+          console.error(`Failed to decrypt post ${post.id}:`, err);
+          decryptedContent = "[已加密内容：本地密钥不匹配或损坏]";
+        }
+      }
 
     return {
       id: post.id,

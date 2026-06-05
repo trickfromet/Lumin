@@ -21,8 +21,6 @@ const nextConfig = {
 
       nodeBuiltins.forEach((builtin) => {
         config.resolve.fallback[builtin] = false;
-        config.resolve.alias[builtin] = false;
-        config.resolve.alias[`node:${builtin}`] = false;
       });
     }
     return config;
