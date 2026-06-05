@@ -1,0 +1,754 @@
+"use client";
+
+class AudioManager {
+  private ctx: AudioContext | null = null;
+  public isMuted: boolean = true; // 默认静音
+  public themeIdx: number = 0;
+
+  // 节点管理
+  private masterGain: GainNode | null = null;
+  private ambientGain: GainNode | null = null;
+
+  // 星空环境音
+  private spaceDroneOsc1: OscillatorNode | null = null;
+  private spaceDroneOsc2: OscillatorNode | null = null;
+  private spaceDroneGain: GainNode | null = null;
+
+  // 水面环境音
+  private waterNoiseSrc: AudioBufferSourceNode | null = null;
+  private waterNoiseGain: GainNode | null = null;
+  private fireNoiseSrc: AudioBufferSourceNode | null = null;
+  private fireNoiseGain: GainNode | null = null;
+
+  // 篝火环境音
+  private campfireRumbleSrc: AudioBufferSourceNode | null = null;
+  private campfireRumbleGain: GainNode | null = null;
+  private campfireCrackleSrc: AudioBufferSourceNode | null = null;
+  private campfireCrackleGain: GainNode | null = null;
+
+  // 混响
+  private convolver: ConvolverNode | null = null;
+
+  private ambientIntervals: number[] = [];
+
+  // 生成房间/洞穴混响的冲激响应
+  private createImpulseResponse(
+    ctx: AudioContext,
+    duration: number,
+    decay: number,
+  ) {
+    const length = ctx.sampleRate * duration;
+    const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    const left = impulse.getChannelData(0);
+    const right = impulse.getChannelData(1);
+    for (let i = 0; i < length; i++) {
+      left[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      right[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+    }
+    return impulse;
+  }
+
+  // 生成白噪声
+  private createNoiseBuffer(ctx: AudioContext, duration: number = 2) {
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+  }
+
+  // 生成粉噪音 (Paul Kellet algorithm, -3dB/octave)
+  private createPinkNoiseBuffer(ctx: AudioContext, duration: number = 3) {
+    const bufferSize = ctx.sampleRate * duration;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    for (let i = 0; i < bufferSize; i++) {
+      const white = Math.random() * 2 - 1;
+      b0 = 0.99886 * b0 + white * 0.0555179;
+      b1 = 0.99332 * b1 + white * 0.0750759;
+      b2 = 0.96900 * b2 + white * 0.1538520;
+      b3 = 0.86650 * b3 + white * 0.3104856;
+      b4 = 0.55000 * b4 + white * 0.5329522;
+      b5 = -0.7616 * b5 - white * 0.0168980;
+      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+      b6 = white * 0.115926;
+    }
+    return buffer;
+  }
+
+  init() {
+    if (typeof window === "undefined") return;
+    if (!this.ctx) {
+      const AudioContextClass =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext })
+          .webkitAudioContext;
+      if (AudioContextClass) {
+        this.ctx = new AudioContextClass();
+
+        // 主音量
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.connect(this.ctx.destination);
+
+        // 环境音量
+        this.ambientGain = this.ctx.createGain();
+        this.ambientGain.connect(this.masterGain);
+
+        // 混响节点
+        this.convolver = this.ctx.createConvolver();
+        this.convolver.buffer = this.createImpulseResponse(this.ctx, 3.0, 2.0);
+        this.convolver.connect(this.masterGain);
+      }
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume();
+    }
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setTargetAtTime(
+        this.isMuted ? 0 : 1,
+        this.ctx.currentTime,
+        0.1,
+      );
+    }
+    if (!this.isMuted) {
+      this.init();
+      this.updateAmbient();
+    } else {
+      this.stopAmbient();
+    }
+    return this.isMuted;
+  }
+
+  setTheme(themeIdx: number) {
+    this.themeIdx = themeIdx;
+    if (!this.isMuted) {
+      this.updateAmbient();
+    }
+  }
+
+  private stopAmbient() {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+
+    // 捕获当前声源引用，防止 updateAmbient 覆盖后误停新声源
+    const oldSpaceOsc1 = this.spaceDroneOsc1;
+    const oldSpaceOsc2 = this.spaceDroneOsc2;
+    const oldWaterSrc = this.waterNoiseSrc;
+    const oldFireSrc = this.fireNoiseSrc;
+    const oldCampfireRumbleSrc = this.campfireRumbleSrc;
+    const oldCampfireCrackleSrc = this.campfireCrackleSrc;
+
+    if (this.spaceDroneGain) {
+      this.spaceDroneGain.gain.setTargetAtTime(0, now, 1);
+      setTimeout(() => {
+        oldSpaceOsc1?.stop();
+        oldSpaceOsc1?.disconnect();
+        oldSpaceOsc2?.stop();
+        oldSpaceOsc2?.disconnect();
+      }, 2000);
+    }
+    if (this.waterNoiseGain) {
+      this.waterNoiseGain.gain.setTargetAtTime(0, now, 1);
+      setTimeout(() => {
+        oldWaterSrc?.stop();
+        oldWaterSrc?.disconnect();
+      }, 2000);
+    }
+    if (this.fireNoiseGain) {
+      this.fireNoiseGain.gain.setTargetAtTime(0, now, 1);
+      setTimeout(() => {
+        oldFireSrc?.stop();
+        oldFireSrc?.disconnect();
+      }, 2000);
+    }
+    if (this.campfireRumbleGain) {
+      this.campfireRumbleGain.gain.setTargetAtTime(0, now, 1);
+      setTimeout(() => {
+        oldCampfireRumbleSrc?.stop();
+        oldCampfireRumbleSrc?.disconnect();
+      }, 2000);
+    }
+    if (this.campfireCrackleGain) {
+      this.campfireCrackleGain.gain.setTargetAtTime(0, now, 1);
+      setTimeout(() => {
+        oldCampfireCrackleSrc?.stop();
+        oldCampfireCrackleSrc?.disconnect();
+      }, 2000);
+    }
+
+    this.ambientIntervals.forEach((id) => clearInterval(id));
+    this.ambientIntervals = [];
+  }
+
+  private updateAmbient() {
+    if (this.isMuted || !this.ctx || !this.ambientGain) return;
+    this.stopAmbient();
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // ── 星空主题 (Space) ──
+      // 1. 宇宙底噪 (Drone) 60-80Hz
+      this.spaceDroneGain = this.ctx.createGain();
+      this.spaceDroneGain.gain.setValueAtTime(0, now);
+      this.spaceDroneGain.gain.setTargetAtTime(0.08, now, 3); // 极低音量
+      this.spaceDroneGain.connect(this.convolver!); // 增加空间感
+      this.spaceDroneGain.connect(this.ambientGain);
+
+      this.spaceDroneOsc1 = this.ctx.createOscillator();
+      this.spaceDroneOsc1.type = "sine";
+      this.spaceDroneOsc1.frequency.value = 65;
+      this.spaceDroneOsc1.connect(this.spaceDroneGain);
+      this.spaceDroneOsc1.start();
+
+      this.spaceDroneOsc2 = this.ctx.createOscillator();
+      this.spaceDroneOsc2.type = "triangle";
+      this.spaceDroneOsc2.frequency.value = 68; // 微微的频响拍音
+      this.spaceDroneOsc2.connect(this.spaceDroneGain);
+      this.spaceDroneOsc2.start();
+
+      // 2. 稀疏的高频结晶音 (Crystalline shimmer)
+      const playCrystal = () => {
+        if (this.isMuted || this.themeIdx !== 0 || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(
+          2000 + Math.random() * 2000,
+          this.ctx.currentTime,
+        ); // 2000-4000Hz
+
+        gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.04, this.ctx.currentTime + 0.1);
+        gain.gain.exponentialRampToValueAtTime(
+          0.001,
+          this.ctx.currentTime + 1.5,
+        ); // 持续1-2秒自然衰减
+
+        osc.connect(gain);
+        gain.connect(this.convolver!); // 通过混响获得空灵感
+        osc.start();
+        osc.stop(this.ctx.currentTime + 2);
+
+        // 随机间隔 8~20秒
+        const nextInterval = 8000 + Math.random() * 12000;
+        this.ambientIntervals.push(
+          window.setTimeout(playCrystal, nextInterval),
+        );
+      };
+      playCrystal();
+    } else if (this.themeIdx === 1) {
+      // ── 水面主题 (Water) ──
+      // 1. 水面微波声 (Filtered Noise)
+      this.waterNoiseGain = this.ctx.createGain();
+      this.waterNoiseGain.gain.setValueAtTime(0, now);
+      this.waterNoiseGain.gain.setTargetAtTime(0.05, now, 2);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = 400; // 模拟沉闷的水波白噪音
+      filter.connect(this.waterNoiseGain);
+      this.waterNoiseGain.connect(this.ambientGain);
+
+      // LFO 模拟细碎涟漪
+      const lfo = this.ctx.createOscillator();
+      lfo.type = "sine";
+      lfo.frequency.value = 0.3;
+      const lfoGain = this.ctx.createGain();
+      lfoGain.gain.value = 150;
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+      lfo.start();
+
+      this.waterNoiseSrc = this.ctx.createBufferSource();
+      this.waterNoiseSrc.buffer = this.createNoiseBuffer(this.ctx, 5);
+      this.waterNoiseSrc.loop = true;
+      this.waterNoiseSrc.connect(filter);
+      this.waterNoiseSrc.start();
+
+      // 2. 极轻的火焰噼啪声 (Campfire crackle)
+      this.fireNoiseGain = this.ctx.createGain();
+      this.fireNoiseGain.gain.setValueAtTime(0, now);
+      this.fireNoiseGain.gain.setTargetAtTime(0.015, now, 2);
+
+      const fireFilter = this.ctx.createBiquadFilter();
+      fireFilter.type = "bandpass";
+      fireFilter.frequency.value = 6000;
+      fireFilter.Q.value = 1.5;
+      fireFilter.connect(this.fireNoiseGain);
+      this.fireNoiseGain.connect(this.ambientGain);
+
+      this.fireNoiseSrc = this.ctx.createBufferSource();
+      this.fireNoiseSrc.buffer = this.createNoiseBuffer(this.ctx, 3);
+      this.fireNoiseSrc.loop = true;
+      this.fireNoiseSrc.connect(fireFilter);
+      this.fireNoiseSrc.start();
+
+      // 3. 远处水鸟/风声 (30-60s 随机触发)
+      const playWaterEvent = () => {
+        if (this.isMuted || this.themeIdx === 0 || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(
+          400 + Math.random() * 200,
+          this.ctx.currentTime,
+        );
+        osc.frequency.exponentialRampToValueAtTime(
+          300,
+          this.ctx.currentTime + 1,
+        );
+
+        gain.gain.setValueAtTime(0, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.02, this.ctx.currentTime + 0.5);
+        gain.gain.linearRampToValueAtTime(0.001, this.ctx.currentTime + 1.5);
+
+        osc.connect(gain);
+        gain.connect(this.convolver!); // 强混响制造纵深感
+        osc.start();
+        osc.stop(this.ctx.currentTime + 2);
+
+        const nextInterval = 30000 + Math.random() * 30000;
+        this.ambientIntervals.push(
+          window.setTimeout(playWaterEvent, nextInterval),
+        );
+      };
+      playWaterEvent();
+
+      // 午夜时段水声减弱，火焰声略微凸显
+      const hour = new Date().getHours();
+      if (hour >= 22 || hour < 6) {
+        this.waterNoiseGain.gain.setTargetAtTime(0.03, now, 1);
+        this.fireNoiseGain.gain.setTargetAtTime(0.025, now, 1);
+      }
+    } else {
+      // ── 篝火主题 (Campfire) ──
+      // 1. 烧木头粉噪音底噪 (Burning wood pink noise rumble)
+      this.campfireRumbleGain = this.ctx.createGain();
+      this.campfireRumbleGain.gain.setValueAtTime(0, now);
+      this.campfireRumbleGain.gain.setTargetAtTime(0.07, now, 2);
+
+      const rumbleFilter = this.ctx.createBiquadFilter();
+      rumbleFilter.type = "lowpass";
+      rumbleFilter.frequency.value = 600; // 低沉木头燃烧声
+      rumbleFilter.connect(this.campfireRumbleGain);
+      this.campfireRumbleGain.connect(this.ambientGain);
+
+      // LFO 模拟火焰摇曳
+      const campfireLfo = this.ctx.createOscillator();
+      campfireLfo.type = "sine";
+      campfireLfo.frequency.value = 0.2;
+      const campfireLfoGain = this.ctx.createGain();
+      campfireLfoGain.gain.value = 200;
+      campfireLfo.connect(campfireLfoGain);
+      campfireLfoGain.connect(rumbleFilter.frequency);
+      campfireLfo.start();
+
+      this.campfireRumbleSrc = this.ctx.createBufferSource();
+      this.campfireRumbleSrc.buffer = this.createPinkNoiseBuffer(this.ctx, 3);
+      this.campfireRumbleSrc.loop = true;
+      this.campfireRumbleSrc.connect(rumbleFilter);
+      this.campfireRumbleSrc.start();
+
+      // 2. 高频噼啪声 (Fire crackle, bandpass ~5000Hz)
+      this.campfireCrackleGain = this.ctx.createGain();
+      this.campfireCrackleGain.gain.setValueAtTime(0, now);
+      this.campfireCrackleGain.gain.setTargetAtTime(0.025, now, 2);
+
+      const crackleFilter = this.ctx.createBiquadFilter();
+      crackleFilter.type = "bandpass";
+      crackleFilter.frequency.value = 5000;
+      crackleFilter.Q.value = 1.5;
+      crackleFilter.connect(this.campfireCrackleGain);
+      this.campfireCrackleGain.connect(this.ambientGain);
+
+      this.campfireCrackleSrc = this.ctx.createBufferSource();
+      this.campfireCrackleSrc.buffer = this.createNoiseBuffer(this.ctx, 2);
+      this.campfireCrackleSrc.loop = true;
+      this.campfireCrackleSrc.connect(crackleFilter);
+      this.campfireCrackleSrc.start();
+
+      // 3. 随机柴火爆裂声 (Random pops, 5-15s)
+      const playPop = () => {
+        if (this.isMuted || this.themeIdx !== 2 || !this.ctx) return;
+        const popOsc = this.ctx.createOscillator();
+        const popGain = this.ctx.createGain();
+        popOsc.type = "triangle";
+        popOsc.frequency.setValueAtTime(
+          200 + Math.random() * 400,
+          this.ctx.currentTime,
+        );
+        popOsc.frequency.exponentialRampToValueAtTime(
+          50,
+          this.ctx.currentTime + 0.15,
+        );
+
+        popGain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        popGain.gain.exponentialRampToValueAtTime(
+          0.001,
+          this.ctx.currentTime + 0.2,
+        );
+
+        popOsc.connect(popGain);
+        popGain.connect(this.convolver!);
+        popOsc.start();
+        popOsc.stop(this.ctx.currentTime + 0.2);
+
+        const nextInterval = 5000 + Math.random() * 10000;
+        this.ambientIntervals.push(
+          window.setTimeout(playPop, nextInterval),
+        );
+      };
+      playPop();
+    }
+  }
+
+  // ── 交互音效 ──
+
+  playHover() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // 星空悬浮：轻弹水晶杯边缘 (800~1200Hz)
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800 + Math.random() * 400, now);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3); // 0.3s 快速衰减
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 0.3);
+    } else if (this.themeIdx === 2) {
+      // 篝火悬浮：温暖木柴轻响 + 噼啪高频
+      const osc1 = this.ctx.createOscillator();
+      const g1 = this.ctx.createGain();
+      osc1.type = "triangle";
+      osc1.frequency.setValueAtTime(80 + Math.random() * 120, now);
+      g1.gain.setValueAtTime(0.08, now);
+      g1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc1.connect(g1);
+      g1.connect(this.convolver!);
+      g1.connect(this.masterGain);
+      osc1.start();
+      osc1.stop(now + 0.3);
+
+      const osc2 = this.ctx.createOscillator();
+      const g2 = this.ctx.createGain();
+      osc2.type = "sawtooth";
+      osc2.frequency.setValueAtTime(800 + Math.random() * 400, now);
+      g2.gain.setValueAtTime(0.03, now);
+      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+      osc2.connect(g2);
+      g2.connect(this.convolver!);
+      g2.connect(this.masterGain);
+      osc2.start();
+      osc2.stop(now + 0.15);
+    } else {
+      // 水面悬浮：水面涟漪，中低频带短混响
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(300 + Math.random() * 100, now);
+      gain.gain.setValueAtTime(0.06, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 0.4);
+    }
+  }
+
+  playClick() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // 星空进入：星尘扫频音，从高向低，带长尾混响
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1500, now);
+      osc.frequency.exponentialRampToValueAtTime(200, now + 0.8);
+
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
+
+      osc.connect(gain);
+      gain.connect(this.convolver!); // 1.5s 的尾音依赖前面初始化的 convolver
+      osc.start();
+      osc.stop(now + 1.0);
+    } else if (this.themeIdx === 2) {
+      // 篝火进入：火焰猛地一亮，噼啪声短暂增强
+      if (this.campfireRumbleGain) {
+        this.campfireRumbleGain.gain.setTargetAtTime(0.12, now, 0.3);
+        this.campfireRumbleGain.gain.setTargetAtTime(0.07, now + 0.5, 0.8);
+      }
+      if (this.campfireCrackleGain) {
+        this.campfireCrackleGain.gain.setTargetAtTime(0.06, now, 0.3);
+        this.campfireCrackleGain.gain.setTargetAtTime(0.025, now + 0.5, 0.8);
+      }
+      // 一声木柴爆裂
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.3);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.1, now + 0.15);
+      gain.gain.linearRampToValueAtTime(0.001, now + 0.6);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      osc.start();
+      osc.stop(now + 0.6);
+    } else {
+      if (this.waterNoiseGain) {
+        this.waterNoiseGain.gain.setTargetAtTime(0.03, now, 0.5);
+      }
+      if (this.fireNoiseGain) {
+        this.fireNoiseGain.gain.setTargetAtTime(0.08, now, 0.5);
+      }
+
+      // 叠加一声浮灯靠近的低鸣
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(200, now);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.08, now + 0.5);
+      gain.gain.linearRampToValueAtTime(0.001, now + 1.5);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 1.5);
+    }
+  }
+
+  playCloseReading() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 2) {
+      // 篝火返回：火焰声短暂加大再回落
+      if (this.campfireRumbleGain) {
+        this.campfireRumbleGain.gain.setTargetAtTime(0.14, now, 0.2);
+        this.campfireRumbleGain.gain.setTargetAtTime(0.07, now + 0.3, 0.5);
+      }
+      if (this.campfireCrackleGain) {
+        this.campfireCrackleGain.gain.setTargetAtTime(0.06, now, 0.2);
+        this.campfireCrackleGain.gain.setTargetAtTime(0.025, now + 0.3, 0.5);
+      }
+    } else if (this.themeIdx === 1) {
+      // 水面返回：水声加大再回落，像船桨轻划 (0.8s)
+      const hour = new Date().getHours();
+      const isNight = hour >= 22 || hour < 6;
+
+      if (this.waterNoiseGain) {
+        this.waterNoiseGain.gain.setTargetAtTime(0.12, now, 0.2); // 瞬时加大
+        this.waterNoiseGain.gain.setTargetAtTime(
+          isNight ? 0.03 : 0.05,
+          now + 0.3,
+          0.5,
+        ); // 回落
+      }
+      if (this.fireNoiseGain) {
+        this.fireNoiseGain.gain.setTargetAtTime(
+          isNight ? 0.025 : 0.015,
+          now,
+          0.5,
+        );
+      }
+    } else {
+      // 星空返回：环境音短暂淡出再淡入 (0.6s)
+      if (this.spaceDroneGain) {
+        this.spaceDroneGain.gain.setTargetAtTime(0, now, 0.2);
+        this.spaceDroneGain.gain.setTargetAtTime(0.08, now + 0.4, 0.5);
+      }
+    }
+  }
+
+  playSend() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // 星空发帖：点亮星星的钟琴单音 C5(523.25) 或 E5(659.25)，0.4s
+      const freq = Math.random() > 0.5 ? 523.25 : 659.25;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 0.4);
+    } else if (this.themeIdx === 2) {
+      // 篝火发帖：木柴投入火中，短暂火焰高涨声 (0.5s)
+      if (this.campfireCrackleGain) {
+        this.campfireCrackleGain.gain.setTargetAtTime(0.08, now, 0.1);
+        this.campfireCrackleGain.gain.setTargetAtTime(0.025, now + 0.3, 0.5);
+      }
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(250, now);
+      osc.frequency.exponentialRampToValueAtTime(60, now + 0.4);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      osc.start();
+      osc.stop(now + 0.5);
+    } else {
+      // 水面发帖：浮灯入水轻微水声 + 扑声 (0.6s)
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(400, now);
+      osc.frequency.exponentialRampToValueAtTime(80, now + 0.2); // 扑声
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      // 水声白噪音
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = this.createNoiseBuffer(this.ctx, 0.3);
+      const noiseFilter = this.ctx.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.value = 800;
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.1, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      osc.start();
+      osc.stop(now + 0.6);
+      noise.start();
+      noise.stop(now + 0.3);
+    }
+  }
+
+  playThemeToggle() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    // 播放过渡音效
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.linearRampToValueAtTime(250, now + 0.4);
+    osc.frequency.linearRampToValueAtTime(150, now + 0.8);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.06, now + 0.4);
+    gain.gain.linearRampToValueAtTime(0.001, now + 0.8);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start();
+    osc.stop(now + 0.8);
+  }
+
+  playMeToo() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // 星空MeToo：极轻星尘飘散，多颗小音符 (0.5s，音量低40%)
+      const ctx = this.ctx;
+      [0, 0.15, 0.25].forEach((delay, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(1200 + i * 300, now + delay);
+        gain.gain.setValueAtTime(0.02, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.2);
+        osc.connect(gain);
+        gain.connect(this.convolver!);
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.2);
+      });
+    } else if (this.themeIdx === 2) {
+      // 篝火MeToo：轻微柴火爆裂 (0.3s)
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(150 + Math.random() * 100, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      osc.start();
+      osc.stop(now + 0.3);
+    } else {
+      // 水面MeToo：水面荡漾 ripple，像投入石子 (0.5s)
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(100, now);
+      osc.frequency.exponentialRampToValueAtTime(40, now + 0.5);
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 0.5);
+    }
+  }
+
+  // 情绪点缀音 (长停留触发)
+  playLongStayEvent() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // 星空长时间停留：极轻柔弦乐单音渐入渐出 (10s)
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle"; // 近似弦乐
+      osc.frequency.setValueAtTime(440, now); // A4
+
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.03, now + 4); // 音量极轻
+      gain.gain.linearRampToValueAtTime(0, now + 10);
+
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      gain.connect(this.masterGain);
+
+      osc.start();
+      osc.stop(now + 10);
+    } else if (this.themeIdx === 2) {
+      // 篝火长时间停留：火焰低沉涌动 (8s)
+      if (this.campfireRumbleGain) {
+        this.campfireRumbleGain.gain.setTargetAtTime(0.12, now, 3);
+        this.campfireRumbleGain.gain.setTargetAtTime(0.07, now + 6, 3);
+      }
+    }
+  }
+}
+
+// 确保只创建一个实例，默认 isMuted = true 等待用户主动开启
+export const audio = new AudioManager();

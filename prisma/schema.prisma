@@ -1,0 +1,300 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ==========================================
+// AUTH MODELS
+// ==========================================
+
+model User {
+  id            Int       @id @default(autoincrement())
+  phone         String?   @unique
+  email         String?   @unique
+  passwordHash  String
+  nickname      String
+  avatarUrl     String?
+  backgroundUrl String?
+  bio           String?
+  birthday      DateTime?
+  status        String    @default("online")
+  role          String    @default("user")
+  isBanned      Boolean   @default(false)
+  banExpiresAt  DateTime?
+  banCount      Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  posts         Post[]
+  comments      Comment[]
+  metoos        MeToo[]
+  notifications Notification[] @relation("UserNotifications")
+  sentReports   Report[]       @relation("Reporter")
+  receivedReports Report[]     @relation("ReportedUser")
+  appeals       Appeal[]
+  collections   Collection[]
+  blocks        UserBlock[]    @relation("Blocker")
+  blockedBy     UserBlock[]    @relation("Blocked")
+  reservations  Reservation[]
+  timeCapsules  TimeCapsule[]
+  feedbacks     Feedback[]
+
+  @@index([phone])
+  @@index([email])
+}
+
+// ==========================================
+// POST MODELS
+// ==========================================
+
+model Post {
+  id               Int       @id @default(autoincrement())
+  userId           Int?
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nickname         String
+  content          String?
+  encryptedContent String?
+  iv               String?
+  authTag          String?
+  isEncrypted      Boolean   @default(false)
+  imageUrl         String?
+  categoryId       Int?
+  category         Category? @relation(fields: [categoryId], references: [id])
+  isHidden         Boolean   @default(false)
+  language         String    @default("zh")
+  campaign         String?                             // 冷启动标记: "initial_launch" 等，用于追踪宣传效果
+  createdAt        DateTime  @default(now())
+
+  likes      Like[]
+  comments   Comment[]
+  metoos     MeToo[]
+  tags       PostTag[]
+  reports    Report[]
+  collections Collection[]
+
+  @@index([categoryId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  icon        String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  posts Post[]
+
+  @@index([sortOrder])
+}
+
+model PostTag {
+  id     Int    @id @default(autoincrement())
+  postId Int
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag    String
+
+  @@unique([postId, tag])
+  @@index([tag])
+}
+
+// ==========================================
+// INTERACTION MODELS
+// ==========================================
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  ip        String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int
+  createdAt DateTime @default(now())
+
+  @@unique([ip, postId])
+}
+
+model MeToo {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ip        String?
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId, postId])
+  @@index([ip, postId])
+  @@index([postId])
+}
+
+model Comment {
+  id        Int       @id @default(autoincrement())
+  userId    Int?
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ip        String?
+  nickname  String
+  content   String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int
+  parentId  Int?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  createdAt DateTime  @default(now())
+
+  @@index([postId])
+  @@index([parentId])
+}
+
+// ==========================================
+// TIME CAPSULE
+// ==========================================
+
+model TimeCapsule {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content     String
+  imageUrl    String?
+  publishAt   DateTime
+  isPublished Boolean  @default(false)
+  isRecalled  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  reservations Reservation[]
+
+  @@index([publishAt])
+  @@index([isPublished])
+  @@index([userId])
+}
+
+model Reservation {
+  id             Int         @id @default(autoincrement())
+  userId         Int
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  timeCapsuleId  Int
+  timeCapsule    TimeCapsule @relation(fields: [timeCapsuleId], references: [id], onDelete: Cascade)
+  createdAt      DateTime    @default(now())
+
+  @@unique([userId, timeCapsuleId])
+}
+
+// ==========================================
+// NOTIFICATION
+// ==========================================
+
+model Notification {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  user        User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  type        String
+  title       String
+  content     String?
+  relatedId   Int?
+  relatedType String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ==========================================
+// MODERATION
+// ==========================================
+
+model Report {
+  id             Int      @id @default(autoincrement())
+  reporterId     Int
+  reporter       User     @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId Int?
+  reportedUser   User?    @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+  postId         Int?
+  post           Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  reason         String
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  reviewedAt     DateTime?
+
+  @@index([status])
+  @@index([postId])
+  @@index([reportedUserId])
+}
+
+model Appeal {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason     String
+  status     String    @default("pending")
+  adminNote  String?
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ==========================================
+// USER RELATIONS
+// ==========================================
+
+model UserBlock {
+  id        Int      @id @default(autoincrement())
+  blockerId Int
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId Int
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+}
+
+model Collection {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    Int
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([userId])
+}
+
+model Feedback {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  rating    String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Guest {
+  ip             String   @id
+  nickname       String?
+  postCount      Int      @default(0)
+  violationCount Int      @default(0)
+  isBanned       Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+}
+
+// ==========================================
+// INVITE CODE (Beta Gating)
+// ==========================================
+
+model InviteCode {
+  id        Int      @id @default(autoincrement())
+  codeHash  String   @unique
+  useCount  Int      @default(0)
+  maxUses   Int      @default(1)
+  createdAt DateTime @default(now())
+}

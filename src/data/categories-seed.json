@@ -1,0 +1,38 @@
+[
+  {
+    "name": "心弦",
+    "description": "风月无边，心事几重，关于爱与羁绊",
+    "icon": "💕",
+    "sortOrder": 1
+  },
+  {
+    "name": "求索",
+    "description": "青灯黄卷，行路漫漫的困惑与期冀",
+    "icon": "📚",
+    "sortOrder": 2
+  },
+  {
+    "name": "尘网",
+    "description": "困于营役与奔波中的叹息",
+    "icon": "💼",
+    "sortOrder": 3
+  },
+  {
+    "name": "屋檐",
+    "description": "关于血脉、至亲与归处的絮语",
+    "icon": "🏠",
+    "sortOrder": 4
+  },
+  {
+    "name": "浮生",
+    "description": "人间烟火里的庸常与微光",
+    "icon": "🌿",
+    "sortOrder": 5
+  },
+  {
+    "name": "幽壑",
+    "description": "无人知晓的深渊、孤独与宣泄",
+    "icon": "🌧️",
+    "sortOrder": 6
+  }
+]
