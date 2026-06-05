@@ -30,8 +30,13 @@ function uint8ArrayToBase64(arr: Uint8Array): string {
 
 async function getCryptoKey(): Promise<CryptoKey> {
   const keyHex = process.env.POST_ENCRYPTION_KEY;
-  if (!keyHex || keyHex.length !== 64) {
-    throw new Error("POST_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)");
+  if (!keyHex) {
+    throw new Error("环境变量 POST_ENCRYPTION_KEY 未设置。请在 .env 中设置一个 64 字符的 hex 密钥。");
+  }
+  if (keyHex.length !== 64) {
+    throw new Error(
+      `POST_ENCRYPTION_KEY 长度错误: 期望 64 字符 hex (32 bytes), 实际 ${keyHex.length} 字符`
+    );
   }
   const keyData = hexToUint8Array(keyHex);
   return globalThis.crypto.subtle.importKey(

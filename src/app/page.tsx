@@ -1235,7 +1235,9 @@ export default function Home() {
 
   // ── 字体切换 ──
   const toggleFont = useCallback(() => {
-    const newFont = !isEnglishMode;
+    // 以 DOM class 为真实来源，消除 React state 闭包滞后导致的竞态
+    const hasEnglish = document.documentElement.classList.contains("font-english");
+    const newFont = !hasEnglish;
     setIsEnglishMode(newFont);
     document.documentElement.classList.toggle("font-english", newFont);
     try {
@@ -1297,7 +1299,7 @@ export default function Home() {
       }
     }
   }, [
-    isEnglishMode,
+    // isEnglishMode 不再作为依赖 — DOM class 是真实来源
     readingVisible,
     currentCategoryName,
   ]);
