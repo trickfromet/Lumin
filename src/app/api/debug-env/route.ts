@@ -1,3 +1,4 @@
+export const runtime = "edge";
 export async function GET() {
   const url = process.env.TURSO_DATABASE_URL;
   const token = process.env.TURSO_AUTH_TOKEN;

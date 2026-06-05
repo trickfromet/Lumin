@@ -1,3 +1,5 @@
+// Edge Runtime polyfill (setImmediate for bcryptjs) — MUST be before bcryptjs
+import "./polyfills";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
