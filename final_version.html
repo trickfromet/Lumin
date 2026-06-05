@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><script data-od-sandbox-shim>(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tree Hole — 星空与水面</title>
+
+<!-- 引入霞鹜文楷字体 -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  /* Dark Theme (Stars) */
+  --void:#06060a;
+  --amber:#e8915a;
+  --amber-dim:rgba(232,145,90,.5);
+  --amber-glow:rgba(232,145,90,.15);
+  --warm-white:rgba(248,242,232,1);
+  --warm-muted:#f4f7f9;
+  --warm-faint:#f4f7f9;
+  --border-line:rgba(255,255,255,.08);
+  
+  /* 将霞鹜文楷作为主字体 */
+  --font-serif: "LXGW WenKai", 'Cormorant Garamond', Georgia, serif;
+  --font-body: "LXGW WenKai", -apple-system, system-ui, sans-serif;
+}
+
+html { transition: background-color 3s ease, color 3s ease; }
+
+html.light-theme {
+  /* Light Theme (Water) */
+  --void:#dde3ec;
+  --amber:#b5757a;
+  --amber-dim:rgba(181,117,122,.5);
+  --amber-glow:rgba(181,117,122,.15);
+  --warm-white:#5a6270;
+  --warm-muted:#8d939e;
+  --warm-faint:#b4bacc;
+  --border-line:rgba(90,98,112,.08);
+}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:var(--void);
+  font-family: var(--font-serif);
+  color:var(--warm-white);
+  -webkit-font-smoothing:antialiased;
+  cursor:default;
+}
+
+.app{
+  position:relative;
+  width:100vw;height:100vh;
+  overflow:hidden;
+  background:var(--void);
+  transition: background-color 3s ease;
+}
+
+#canvas-container{position:absolute;inset:0;z-index:1;width:100%;height:100%;}
+#mainCanvas{position:absolute;inset:0;width:100%;height:100%;}
+
+/* ── DOM Animated Explorers (Capsule & Boat) ── */
+#boat-container, #capsule-container {
+  position: absolute; top: 50%; left: 50%;
+  z-index: 5; pointer-events: none; opacity: 0;
+  transition: opacity 2s ease; will-change: transform;
+}
+html.app-ready #capsule-container { opacity: 1; }
+html.app-ready.light-theme #capsule-container { opacity: 0; }
+html.app-ready #boat-container { opacity: 0; }
+html.app-ready.light-theme #boat-container { opacity: 1; }
+
+#boat-container { margin-left: -40px; margin-top: 10px; width: 80px; height: 48px; }
+.boat { position: absolute; inset: 0; animation: bob 4s ease-in-out infinite; transform-origin: center bottom; }
+.boat-ripple {
+  position: absolute; top: 26px; left: 10px; width: 60px; height: 12px;
+  border-radius: 50%; border: 1.5px solid rgba(180, 160, 120, 0.4);
+  animation: ripple 3s ease-out infinite;
+}
+
+#capsule-container { margin-left: -30px; margin-top: -30px; width: 60px; height: 60px; }
+.capsule { position: absolute; inset: 0; animation: floatSpace 4s ease-in-out infinite; transform-origin: center center; }
+.capsule-exhaust { transform-origin: center top; animation: exhaustPulse 1.5s ease-in-out infinite alternate; }
+
+@keyframes bob { 0%, 100% { transform: translateY(0px) rotate(-1.5deg); } 50% { transform: translateY(-6px) rotate(1.5deg); } }
+@keyframes floatSpace { 0%, 100% { transform: translateY(0px) rotate(-1.5deg); } 50% { transform: translateY(-6px) rotate(1.5deg); } }
+@keyframes ripple { 0% { transform: scale(0.6); opacity: 0.7; } 100% { transform: scale(2.0); opacity: 0; } }
+@keyframes exhaustPulse { 0% { opacity: 0.3; transform: scaleY(0.7); } 100% { opacity: 0.9; transform: scaleY(1.3); } }
+
+/* ── Transition Expanding Glow ── */
+.expanding-glow {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1); z-index: 45; pointer-events: none;
+  transition: transform 1.8s cubic-bezier(0.5, 0, 0.2, 1), opacity 1.5s ease; opacity: 0;
+}
+.expanding-glow.active { transform: translate(-50%, -50%) scale(450); opacity: 1; }
+
+.grain{
+  position:absolute;inset:0;z-index:85;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:200px 200px; mix-blend-mode:overlay;
+}
+html.light-theme .grain { opacity: 0.15; mix-blend-mode: multiply; }
+
+.vignette{
+  position:absolute;inset:0;z-index:80;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,.5) 100%);
+  transition: background 3s ease;
+}
+html.light-theme .vignette { background:radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(180,190,205,.25) 100%); }
+
+/* ── UI Layer ── */
+.ui-layer{ position:absolute;inset:0;z-index:10; pointer-events:none; }
+.ui-layer *{pointer-events:auto; transition: color 3s ease, border-color 3s ease, background 3s ease, fill 3s ease, text-shadow 3s ease;}
+
+.top-bar{
+  position:absolute;top:0;left:0;right:0;z-index:25;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:28px 48px;
+  background:linear-gradient(to bottom, rgba(6,6,10,.7) 0%, transparent 100%); transition: background 3s ease;
+}
+html.light-theme .top-bar { background:linear-gradient(to bottom, rgba(221,227,236,.8) 0%, transparent 100%); }
+
+.top-left{ display:flex;align-items:center;gap:16px; }
+
+.theme-toggle{
+  display:flex;align-items:center;gap:8px;
+  background:none;border:1px solid var(--border-line);
+  color:var(--warm-muted);cursor:pointer;
+  padding:6px 10px;border-radius:16px;
+  font-family:var(--font-body);font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;
+  transition:color .3s ease, border-color .3s ease, opacity .3s ease; opacity:.6;
+}
+.theme-toggle svg{width:14px;height:14px}
+.theme-toggle:hover{color:var(--warm-white);border-color:rgba(255,255,255,.2);opacity:.9}
+html.light-theme .theme-toggle:hover{border-color:var(--warm-white);}
+
+.app-wordmark{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:13px;letter-spacing:.35em;text-transform:uppercase;
+  color:var(--warm-muted);opacity:.9; user-select:none;
+}
+
+.top-nav{ display:flex;gap:36px;align-items:center; }
+.top-nav-link{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:13px;letter-spacing:.06em;
+  color:var(--warm-muted);opacity:.95;
+  cursor:pointer;transition:opacity .3s ease, color .3s ease;
+  background:none;border:none;padding:6px 0; text-decoration:none;
+}
+.top-nav-link:hover{opacity:.85;color:var(--warm-white)}
+.top-nav-link.active{opacity:.95;color:var(--amber)}
+
+.greeting{
+  position:absolute; top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:15; text-align:center; pointer-events:none;
+  animation:greetingSequence 5s ease forwards;
+}
+
+@keyframes greetingSequence{
+  0%{opacity:0;top:50%;left:50%;transform:translate(-50%,-50%)}
+  10%{opacity:1;top:50%;left:50%;transform:translate(-50%,-50%)}
+  40%{opacity:1;top:50%;left:50%;transform:translate(-50%,-50%)}
+  55%{opacity:0;top:50%;left:50%;transform:translate(-50%,-50%)}
+  56%{opacity:0;top:86px;left:50%;transform:translate(-50%,0)}
+  66%{opacity:0;top:86px;left:50%;transform:translate(-50%,0)}
+  100%{opacity:1;top:86px;left:50%;transform:translate(-50%,0)}
+}
+.greeting.hidden{opacity:0;transition:opacity .5s ease}
+
+.greeting-text{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:clamp(22px,2.5vw,36px); line-height:1.7;letter-spacing:.04em;
+  color:var(--warm-white); text-shadow:0 0 40px rgba(0,0,0,.6); max-width:600px;
+  transition: opacity 0.4s ease, font-size 1.2s cubic-bezier(0.22,0.61,0.36,1), letter-spacing 1.2s cubic-bezier(0.22,0.61,0.36,1), text-shadow 3s ease, color 3s ease;
+  will-change: opacity, font-size, letter-spacing;
+}
+html.light-theme .greeting-text{ text-shadow:0 2px 10px rgba(255,255,255,.6); letter-spacing: 0.15em; }
+
+.greeting-sub{
+  margin-top:16px; font-family:var(--font-body);font-weight:300;
+  font-size:clamp(11px,1vw,14px); letter-spacing:.12em; color:var(--warm-faint);
+  transition: opacity 0.4s ease, font-size 1.2s cubic-bezier(0.22,0.61,0.36,1), margin-top 1.2s cubic-bezier(0.22,0.61,0.36,1), letter-spacing 1.2s cubic-bezier(0.22,0.61,0.36,1), color 3s ease;
+  will-change: opacity, font-size, margin-top, letter-spacing;
+}
+.greeting.settled .greeting-text{ font-size:clamp(15px,1.4vw,20px); }
+.greeting.settled .greeting-sub{ font-size:clamp(10px,.85vw,12px); margin-top:8px; }
+
+.constellation-label{
+  position:absolute; white-space:nowrap;
+  font-family:var(--font-serif); font-weight:300;
+  font-size:clamp(13px,1.1vw,17px); letter-spacing:.08em;
+  color:var(--warm-faint); pointer-events:none;
+  text-shadow:0 0 12px rgba(0,0,0,.5); user-select:none; opacity: 0;
+  transition: opacity 1.5s ease, color 1.2s ease, text-shadow 1.2s ease, transform 3s ease;
+}
+html.light-theme .constellation-label { text-shadow: 0 0 15px rgba(255,255,255,.8); color: var(--warm-muted); letter-spacing: .15em; }
+.constellation-label.visible { opacity: .95; color: var(--amber); text-shadow: 0 0 18px var(--amber-glow), 0 0 40px rgba(232,145,90,.08); }
+html.light-theme .constellation-label.visible { text-shadow: 0 0 18px var(--amber-glow), 0 0 40px rgba(255,255,255,.8); }
+
+/* ── Bottom Bar ── */
+.bottom-bar{
+  position:absolute;bottom:0;left:0;right:0;z-index:20;
+  display:flex;align-items:center;justify-content:center;
+  gap:48px; padding:24px 48px 32px;
+  background:linear-gradient(to top, rgba(6,6,10,.8) 0%, transparent 100%); transition: background 3s ease;
+}
+html.light-theme .bottom-bar { background:linear-gradient(to top, rgba(221,227,236,.9) 0%, transparent 100%); }
+
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  cursor:pointer;opacity:.55;transition:opacity .3s ease;
+  background:none;border:none;padding:8px 12px; color: var(--warm-muted);
+}
+.nav-item:hover,.nav-item.active{opacity:.7; color: var(--warm-white);}
+.nav-item svg{width:20px;height:20px; transition: color 3s ease;}
+.nav-item span{ font-family:var(--font-body);font-size:14px; letter-spacing:.12em; transition: color 3s ease; }
+
+/* ── Screens ── */
+.screen{
+  position:absolute;inset:0;z-index:50;
+  display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;
+  transition:opacity .6s ease, background 3s ease;
+  background:rgba(6,6,10,.92);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+}
+html.light-theme .screen { background:rgba(221,227,236,.88); }
+.screen.visible{ opacity:1;pointer-events:auto; }
+
+.screen-close{
+  position:absolute;top:28px;right:48px;z-index:70;
+  background:none;border:none;cursor:pointer;
+  padding:10px;opacity:.4;transition:opacity .3s ease;
+}
+.screen-close:hover{opacity:.8}
+.screen-close svg{width:22px;height:22px; stroke: var(--warm-white);}
+html.light-theme .screen-close svg{stroke: var(--warm-white);}
+
+/* ── Reading & Compose Shared ── */
+.reading-layout, .compose-layout{ display:flex; width:100%;height:100%; overflow-y:auto; }
+.reading-content{ flex:1; display:flex;flex-direction:column; align-items:center;justify-content:center; padding:100px 80px 80px; max-width:800px; margin:0 auto; }
+.reading-category{ font-family:var(--font-body);font-size:11px; letter-spacing:.2em;text-transform:uppercase; color:var(--amber);opacity:0.8;margin-bottom:32px; align-self:flex-start; }
+.reading-text{ font-family:var(--font-serif);font-weight:300; font-size:clamp(18px,1.6vw,24px); line-height:2;letter-spacing:.02em; color:var(--warm-white); max-width:620px; align-self:flex-start; }
+.reading-text p{margin-bottom:36px}
+.reading-time{ margin-top:40px;align-self:flex-start; font-family:var(--font-body);font-size:12px; color:var(--warm-faint);letter-spacing:.06em; }
+.reading-actions{ margin-top:60px; display:flex;flex-direction:column;align-items:center;gap:24px; align-self:flex-start; }
+.reading-back, .compose-back{ align-self:flex-start; display:flex;align-items:center;gap:8px; background:none;border:none;cursor:pointer; padding:6px 4px 10px;color:var(--warm-muted); margin-top:-6px;margin-left:-10px; font-family:var(--font-body);font-size:14px; letter-spacing:.08em;text-transform:uppercase; transition:color .3s ease, opacity .3s ease; opacity:.7; }
+.reading-back svg, .compose-back svg{width:16px;height:16px}
+.reading-back:hover, .compose-back:hover{color:var(--warm-white);opacity:1}
+.reading-hint{ font-family:var(--font-serif);font-size:14px; font-style:italic;color:var(--warm-muted); letter-spacing:.04em;opacity:.5; }
+.reading-btns{display:flex;gap:40px;align-items:center}
+.reading-btn{ background:none;border:none; font-family:var(--font-serif);font-size:14px; color:var(--warm-muted);cursor:pointer; padding:12px 40px;letter-spacing:.04em; transition:color .3s ease; position:relative; }
+.reading-btn:hover{color:var(--warm-white)}
+.reading-btn.primary{color:var(--amber)}
+.reading-btn.primary:hover{text-shadow:0 0 20px var(--amber-glow)}
+.reading-dot{width:3px;height:3px;border-radius:50%;background:var(--warm-faint)}
+
+.warm-glow{
+  position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at 50% 50%, var(--amber-glow) 0%, transparent 60%);
+  transition:opacity 2s ease, background 3s ease;
+}
+.warm-glow.active{opacity:1;transition:opacity .8s ease}
+.warm-glow.fading{opacity:0;transition:opacity 2.5s ease}
+.empathy-msg{ position:absolute;bottom:140px;left:0;right:0;z-index:25; text-align:center; font-family:var(--font-serif);font-size:clamp(16px,1.3vw,22px); font-style:italic;color:var(--amber); opacity:0;transform:translateY(10px); transition:opacity 1.2s ease, transform 1.2s ease; pointer-events:none; }
+.empathy-msg.show{opacity:.8;transform:translateY(0)}
+
+/* Compose Screen */
+.compose-layout{ flex-direction:column; padding:80px 0 0; }
+.compose-header-inner{ display:flex;align-items:center;justify-content:space-between; padding:0 48px 32px; border-bottom:1px solid var(--border-line); }
+.compose-category-label{ font-family:var(--font-serif);font-size:13px; letter-spacing:.12em;color:var(--warm-faint); }
+.compose-body{ flex:1;display:flex;flex-direction:column; padding:40px 48px; max-width:800px;width:100%; margin:0 auto; }
+.compose-textarea{ flex:1;width:100%; background:transparent;border:none;outline:none;resize:none; font-family:var(--font-serif);font-weight:300; font-size:clamp(17px,1.4vw,22px); line-height:2;letter-spacing:.02em; color:var(--warm-white);caret-color:var(--amber); transition: color 3s ease; }
+.compose-textarea::placeholder{color:var(--warm-faint);font-style:italic}
+.compose-footer{ display:flex;align-items:center;justify-content:space-between; padding:20px 48px 36px; border-top:1px solid var(--border-line); max-width:800px;width:100%;margin:0 auto; }
+.compose-char{ font-family:var(--font-body);font-size:12px; color:var(--warm-faint);letter-spacing:.06em; }
+.compose-send{ background:none;border:none;cursor:pointer; padding:14px 36px;border-radius:28px; border:1px solid var(--amber-dim); font-family:var(--font-serif);font-size:14px; letter-spacing:.1em;color:var(--amber); transition:all .3s ease; }
+.compose-send:hover{ background:rgba(181,117,122,.08); border-color:var(--amber); box-shadow:0 0 25px var(--amber-glow); }
+.compose-send:disabled{ opacity:.25;cursor:default; border-color:var(--warm-faint);color:var(--warm-faint); }
+
+/* ── PROFILE SCREEN ── */
+#screen-profile { overflow-y: auto; overflow-x: hidden; }
+.profile-cover {
+  position: relative; height: 28vh; min-height: 200px; width: 100%;
+  background: linear-gradient(to bottom, rgba(30,35,50,0.8), transparent);
+  border-bottom: 1px solid var(--border-line);
+  display: flex; align-items: flex-end; justify-content: flex-end; padding: 24px;
+  transition: background 3s ease;
+}
+html.light-theme .profile-cover { background: linear-gradient(to bottom, rgba(180,190,210,0.6), transparent); }
+
+.cover-hint {
+  font-family: var(--font-body); font-size: 11px; letter-spacing: 0.1em;
+  color: var(--warm-muted); opacity: 0.5; padding: 8px 16px; border-radius: 20px;
+  background: rgba(0,0,0,0.2); cursor: pointer; transition: opacity 0.3s ease;
+}
+.cover-hint:hover { opacity: 1; }
+
+.profile-settings-btn {
+  position: absolute; top: 28px; right: 90px;
+  background: none; border: none; cursor: pointer; padding: 10px; color: var(--warm-white);
+  opacity: 0.6; transition: opacity 0.3s ease; z-index: 10;
+}
+.profile-settings-btn:hover { opacity: 1; }
+.profile-settings-btn svg { width: 22px; height: 22px; stroke: currentColor; }
+
+.profile-header {
+  max-width: 800px; margin: 0 auto; padding: 0 48px;
+  position: relative; display: flex; align-items: flex-end; gap: 32px;
+  transform: translateY(-40px);
+}
+.profile-avatar {
+  width: 100px; height: 100px; border-radius: 50%;
+  background: rgba(20,20,30,0.8);
+  border: 2px solid rgba(255,255,255,0.1);
+  box-shadow: 0 0 30px rgba(0,0,0,0.5), 0 0 20px var(--amber-glow);
+  display: flex; align-items: center; justify-content: center;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  color: var(--warm-faint); transition: all 3s ease;
+}
+html.light-theme .profile-avatar {
+  background: rgba(240,245,250,0.8); border-color: rgba(0,0,0,0.05);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.05), 0 0 20px rgba(255,255,255,0.5);
+  color: var(--warm-muted);
+}
+.profile-avatar svg { width: 40px; height: 40px; }
+
+.profile-meta { flex: 1; padding-bottom: 8px; }
+.profile-name { font-family: var(--font-serif); font-size: 28px; font-weight: 400; letter-spacing: 0.05em; color: var(--warm-white); margin-bottom: 6px; }
+.profile-id { font-family: var(--font-body); font-size: 12px; letter-spacing: 0.1em; color: var(--warm-muted); opacity: 0.6; }
+
+.profile-tags { display: flex; gap: 12px; margin-top: 16px; align-items: center; }
+.profile-tag {
+  font-family: var(--font-body); font-size: 12px; letter-spacing: 0.05em;
+  padding: 4px 12px; border-radius: 12px; background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border-line); color: var(--warm-muted);
+  display: flex; align-items: center; gap: 6px;
+}
+html.light-theme .profile-tag { background: rgba(0,0,0,0.03); }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; box-shadow: 0 0 8px #4caf50; }
+
+.profile-body { max-width: 800px; margin: 0 auto; padding: 0 48px 80px; }
+.profile-tabs { display: flex; gap: 32px; border-bottom: 1px solid var(--border-line); margin-bottom: 32px; }
+.profile-tab {
+  font-family: var(--font-serif); font-size: 16px; letter-spacing: 0.05em;
+  background: none; border: none; padding: 0 0 16px 0; color: var(--warm-muted);
+  cursor: pointer; opacity: 0.6; transition: all 0.3s ease; position: relative;
+}
+.profile-tab:hover { opacity: 1; }
+.profile-tab.active { color: var(--amber); opacity: 1; }
+.profile-tab.active::after { content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px; background: var(--amber); box-shadow: 0 0 10px var(--amber); }
+
+.profile-content-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.profile-filter { font-family: var(--font-body); font-size: 12px; color: var(--warm-muted); display: flex; gap: 16px; }
+.profile-filter span { cursor: pointer; opacity: 0.5; transition: opacity 0.3s ease; }
+.profile-filter span.active, .profile-filter span:hover { opacity: 1; color: var(--warm-white); }
+
+.profile-add-btn {
+  background: rgba(255,255,255,0.03); border: 1px dashed var(--border-line);
+  border-radius: 16px; padding: 24px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 12px;
+  font-family: var(--font-serif); font-size: 15px; color: var(--warm-muted); letter-spacing: 0.05em;
+  cursor: pointer; transition: all 0.3s ease; margin-bottom: 24px;
+}
+html.light-theme .profile-add-btn { background: rgba(0,0,0,0.02); }
+.profile-add-btn:hover { background: rgba(255,255,255,0.08); color: var(--amber); border-color: var(--amber-dim); }
+html.light-theme .profile-add-btn:hover { background: rgba(0,0,0,0.05); }
+
+.profile-feed-empty { text-align: center; padding: 60px 0; font-family: var(--font-serif); font-size: 15px; font-style: italic; color: var(--warm-faint); opacity: 0.5; }
+
+/* ── SETTINGS SCREEN ── */
+#screen-settings { z-index: 80; /* Overlay above profile */ }
+.settings-layout { max-width: 600px; margin: 0 auto; padding: 100px 48px; width: 100%; display: flex; flex-direction: column; gap: 40px; }
+.settings-title { font-family: var(--font-serif); font-size: 24px; font-weight: 300; letter-spacing: 0.05em; color: var(--warm-white); border-bottom: 1px solid var(--border-line); padding-bottom: 24px; }
+
+.settings-section { display: flex; flex-direction: column; gap: 16px; }
+.settings-section-title { font-family: var(--font-body); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--warm-muted); opacity: 0.7; padding-left: 16px; }
+
+.settings-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border-line); border-radius: 16px; overflow: hidden; }
+html.light-theme .settings-card { background: rgba(0,0,0,0.02); }
+
+.settings-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 18px 24px; font-family: var(--font-serif); font-size: 16px;
+  color: var(--warm-white); border-bottom: 1px solid var(--border-line);
+  cursor: pointer; transition: background 0.3s ease; text-decoration: none;
+}
+.settings-item:last-child { border-bottom: none; }
+.settings-item:hover { background: rgba(255,255,255,0.05); }
+html.light-theme .settings-item:hover { background: rgba(0,0,0,0.04); }
+.settings-item-val { font-family: var(--font-body); font-size: 13px; color: var(--warm-muted); display: flex; align-items: center; gap: 8px; }
+.settings-item-val svg { width: 14px; height: 14px; opacity: 0.5; }
+
+.settings-danger { color: #e57373 !important; }
+html.light-theme .settings-danger { color: #c62828 !important; }
+
+/* Feedback Form */
+.feedback-box { padding: 24px; background: rgba(255,255,255,0.01); display: none; border-bottom: 1px solid var(--border-line); }
+.feedback-box.active { display: block; }
+.feedback-rating { display: flex; gap: 16px; margin-bottom: 16px; }
+.rate-btn { background: none; border: 1px solid var(--border-line); padding: 8px 16px; border-radius: 20px; font-family: var(--font-body); font-size: 13px; color: var(--warm-muted); cursor: pointer; transition: all 0.3s ease; }
+.rate-btn.selected { border-color: var(--amber); color: var(--amber); background: var(--amber-glow); }
+.feedback-textarea { width: 100%; height: 100px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-line); border-radius: 8px; padding: 12px; font-family: var(--font-body); font-size: 14px; color: var(--warm-white); resize: none; outline: none; margin-bottom: 16px; }
+html.light-theme .feedback-textarea { background: rgba(255,255,255,0.5); }
+.feedback-submit { background: none; border: 1px solid var(--amber-dim); padding: 8px 24px; border-radius: 20px; font-family: var(--font-serif); font-size: 14px; color: var(--amber); cursor: pointer; transition: all 0.3s ease; float: right; }
+.feedback-submit:hover { background: var(--amber-glow); border-color: var(--amber); }
+
+.screen-enter{animation:screenEnter .6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards}
+@keyframes screenEnter{ 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <div id="canvas-container">
+    <canvas id="mainCanvas"></canvas>
+  </div>
+
+  <!-- 水面中央的漂浮小船 (浅色模式显示) -->
+  <div id="boat-container">
+    <div class="boat-ripple"></div>
+    <div class="boat">
+      <svg viewBox="-20 -12 40 24" width="80" height="48" style="overflow: visible;">
+        <g stroke="rgba(140, 150, 165, 0.8)" stroke-width="1.2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+          <g transform="translate(0, 5) scale(1, -0.3)" stroke="rgba(140, 150, 165, 0.25)">
+            <path d="M-16 -2 L16 -2 L10 4 L-10 4 Z"/>
+            <path d="M-8 -2 L8 -2"/>
+          </g>
+          <path d="M-16 -2 L16 -2 L10 4 L-10 4 Z"/>
+          <path d="M-8 -2 L8 -2"/>
+          <path d="M2 -2 L6 -8"/>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- 太空中央的探索胶囊 (暗色模式显示) -->
+  <div id="capsule-container">
+    <div class="capsule">
+      <svg viewBox="-30 -30 60 60" width="60" height="60" style="overflow: visible;">
+        <defs>
+          <linearGradient id="capsuleBody" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="rgba(30, 40, 60, 0.9)"/>
+            <stop offset="100%" stop-color="rgba(10, 15, 25, 0.9)"/>
+          </linearGradient>
+        </defs>
+        <circle cx="0" cy="-2" r="22" fill="rgba(180, 200, 255, 0.05)" />
+        <path class="capsule-exhaust" d="M-5 14 L0 28 L5 14 Z" fill="rgba(120, 200, 255, 0.5)" filter="blur(2px)"/>
+        <rect x="-8" y="-14" width="16" height="28" rx="8" fill="url(#capsuleBody)" stroke="rgba(180, 200, 230, 0.7)" stroke-width="1.5" />
+        <circle cx="0" cy="-5" r="4.5" fill="rgba(220, 240, 255, 0.95)" />
+        <path d="M-8 -1 L-14 2 M8 -1 L14 2" stroke="rgba(180, 200, 230, 0.5)" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M-4 6 L4 6" stroke="rgba(180, 200, 230, 0.4)" stroke-width="1" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="grain"></div>
+  <div class="vignette"></div>
+
+  <!-- ════ MAIN VIEW ════ -->
+  <div class="ui-layer" id="mainView">
+    <div class="top-bar">
+      <div class="top-left">
+        <div class="app-wordmark">Tree Hole</div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" id="themeIcon">
+            <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+          <span id="themeLabel">水面</span>
+        </button>
+      </div>
+      <nav class="top-nav">
+        <button class="top-nav-link active">广场</button>
+        <button class="top-nav-link" data-action="compose">书写</button>
+      </nav>
+    </div>
+
+    <div class="greeting" id="greeting">
+      <div class="greeting-text" id="greetMain">心事了吗？这里有人</div>
+      <div class="greeting-sub" id="greetSub">点击一颗发光的星，走进它</div>
+    </div>
+
+    <div class="bottom-bar">
+      <button class="nav-item active" aria-label="Home" onclick="closeAllScreens()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/></svg>
+        <span>广场</span>
+      </button>
+      <button class="nav-item" data-action="compose" aria-label="Write">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span>书写</span>
+      </button>
+      <button class="nav-item" data-action="profile" aria-label="Profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+        <span>我</span>
+      </button>
+    </div>
+
+    <button class="sound-indicator" aria-label="Ambient sound">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v18M8 7v10M4 10v4M16 7v10M20 10v4"/></svg>
+      <div class="sound-bars"><div class="sound-bar"></div><div class="sound-bar"></div><div class="sound-bar"></div></div>
+    </button>
+  </div>
+
+  <!-- ════ READING SCREEN ════ -->
+  <div class="screen" id="screen-reading">
+    <div class="warm-glow" id="warmGlow"></div>
+    <div class="empathy-msg" id="empathyMsg">你不是一个人。</div>
+    <button class="screen-close" id="closeReading" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="reading-layout">
+      <div class="reading-content">
+        <button class="reading-back" id="readingBack" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg> 返回
+        </button>
+        <div class="reading-category" id="readingCategory">Midnight Whispers</div>
+        <div class="reading-text" id="readingText">
+          <p>凌晨三点，又睡不着。</p>
+          <p>窗外的路灯把影子拉得很长，像一条走不完的路。今天在公司的时候，有人问我"你还好吗"，我说"挺好的"。</p>
+          <p>其实不太好。但我不知道怎么说，也不知道该跟谁说。</p>
+          <p>有些话，说出来怕被人觉得矫情；不说，又像石头一样压在胸口。</p>
+        </div>
+        <div class="reading-time">3小时前 · 来自一个无法入睡的人</div>
+        <div class="reading-actions">
+          <div class="reading-hint">读完了</div>
+          <div class="reading-btns">
+            <button class="reading-btn primary" id="btnEmpathy">我也是</button>
+            <div class="reading-dot"></div>
+            <button class="reading-btn">写一条回声</button>
+            <div class="reading-dot"></div>
+            <button class="reading-btn">下一个故事</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ COMPOSE SCREEN ════ -->
+  <div class="screen" id="screen-compose">
+    <button class="screen-close" id="closeCompose" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    <div class="compose-layout">
+      <div class="compose-header-inner">
+        <button class="compose-back" id="composeBack" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg> 返回
+        </button>
+        <div class="compose-category-label">深夜碎碎念</div>
+      </div>
+      <div class="compose-body">
+        <textarea class="compose-textarea" id="composeTextarea" placeholder="把心里的话，放在这里……" maxlength="400"></textarea>
+      </div>
+      <div class="compose-footer">
+        <div class="compose-char"><span id="charCount">0</span> / 800</div>
+        <button class="compose-send" id="composeSend" disabled>放入水面</button>
+      </div>
+    </div>
+    <div class="sink-overlay" id="sinkOverlay">
+      <div class="sink-text" id="sinkText"></div>
+      <div class="sink-message" id="sinkMessage">说出来了，就好。</div>
+    </div>
+  </div>
+
+  <!-- ════ PROFILE SCREEN ════ -->
+  <div class="screen" id="screen-profile">
+    <button class="screen-close" id="closeProfile" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    
+    <div class="profile-layout screen-enter">
+      <div class="profile-cover">
+        <button class="profile-settings-btn" id="openSettings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        </button>
+        <div class="cover-hint">点击更改背板</div>
+      </div>
+      
+      <div class="profile-header">
+        <div class="profile-avatar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        </div>
+        <div class="profile-meta">
+          <h2 class="profile-name">拾光者</h2>
+          <span class="profile-id">Tree Hole ID: 809234</span>
+          <div class="profile-tags">
+            <span class="profile-tag">♊ 双子座</span>
+            <span class="profile-tag" style="cursor:pointer;" id="statusToggle">
+              <i class="status-dot"></i> <span id="statusText">在线</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="profile-body">
+        <div class="profile-tabs">
+          <button class="profile-tab active" onclick="switchProfileTab(this, 'moments')">我的动态</button>
+        </div>
+        
+        <div id="tab-moments" class="profile-tab-content">
+          <div class="profile-content-header">
+            <div class="profile-filter">
+              <span class="active">全部可见</span>
+              <span>仅自己可见</span>
+            </div>
+          </div>
+          <button class="profile-add-btn" data-action="compose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" width="20" height="20"><path d="M12 5v14M5 12h14"/></svg>
+            记录一瞬
+          </button>
+          <div class="profile-feed-empty">这里空空如也，像没有回音的山谷。</div>
+        </div>
+        
+      </div>
+    </div>
+  </div>
+
+  <!-- ════ SETTINGS SCREEN ════ -->
+  <div class="screen" id="screen-settings">
+    <button class="screen-close" id="closeSettings" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+    </button>
+    
+    <div class="settings-layout screen-enter">
+      <h2 class="settings-title">设置</h2>
+      
+      <div class="settings-section">
+        <span class="settings-section-title">偏好</span>
+        <div class="settings-card">
+          <div class="settings-item">
+            <span>语言调整 Language</span>
+            <div class="settings-item-val">中文 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-title">支持</span>
+        <div class="settings-card">
+          <div class="settings-item" onclick="toggleFeedback()">
+            <span>联系与反馈</span>
+            <div class="settings-item-val"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+          
+          <div class="feedback-box" id="feedbackBox">
+            <div class="feedback-rating">
+              <button class="rate-btn selected" onclick="selectRate(this, '好评')">给个好评</button>
+              <button class="rate-btn" onclick="selectRate(this, '差评')">给个差评</button>
+            </div>
+            <textarea class="feedback-textarea" id="feedbackText" placeholder="留下你的建议..."></textarea>
+            <div style="overflow:hidden;">
+              <button class="feedback-submit" onclick="submitFeedback()">发送邮件</button>
+            </div>
+          </div>
+
+          <div class="settings-item">
+            <span>问题反馈</span>
+            <div class="settings-item-val"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+          <div class="settings-item">
+            <span>当前版本</span>
+            <div class="settings-item-val">v 1.0.2</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-title">法律</span>
+        <div class="settings-card">
+          <div class="settings-item">
+            <span>用户协议</span>
+            <div class="settings-item-val"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+          <div class="settings-item">
+            <span>隐私设置</span>
+            <div class="settings-item-val"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <span class="settings-section-title">账号</span>
+        <div class="settings-card">
+          <div class="settings-item">
+            <span>退出登录</span>
+          </div>
+          <div class="settings-item settings-danger">
+            <span>注销账号</span>
+          </div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ════════════════════════════════════
+   CANVAS — Dual Theme Renderer
+   ════════════════════════════════════ */
+
+const app = document.getElementById('app');
+const canvas = document.getElementById('mainCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+
+let isLightTheme = false;
+let themeT = 0; 
+const THEME_SPEED = 0.5;
+
+function lerpColor(c1, c2, t) {
+  return c1.map((v, i) => Math.round(v + (c2[i] - v) * t));
+}
+
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  regeneratePositions();
+}
+window.addEventListener('resize', resize);
+
+let _seed = 42;
+function srand(s){ _seed = s; }
+function rand(){
+  _seed = (_seed * 16807 + 0) % 2147483647;
+  return (_seed - 1) / 2147483646;
+}
+function randRange(a, b){ return a + rand() * (b - a); }
+
+const BG_COUNT = 5000;
+const bgStars =[];
+srand(7);
+for(let i = 0; i < BG_COUNT; i++){
+  const r = rand();
+  bgStars.push({
+    xPct: rand(), yPct: rand(),
+    r: r < 0.5 ? 0.3 + rand() * 0.4 : r < 0.8 ? 0.5 + rand() * 0.5 : 0.8 + rand() * 0.8,
+    baseAlpha: 0.02 + rand() * 0.08, 
+    twinkleSpeed: 0.1 + rand() * 0.4,
+    twinklePhase: rand() * Math.PI * 2,
+    layer: rand() < 0.3 ? 0 : rand() < 0.6 ? 1 : 2,
+    warmth: rand(), x: 0, y: 0
+  });
+}
+
+let waterRipples =[];
+for(let i=0; i<25; i++) {
+  waterRipples.push({
+    yPct: rand(), widthPct: randRange(0.05, 0.2), phase: rand() * Math.PI * 2, speed: randRange(0.1, 0.4)
+  });
+}
+
+srand(12345);
+function genNodes(cxPct, cyPct, count, spreadPctX, spreadPctY){
+  const nodes =[];
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  for(let i = 0; i < count; i++){
+    const angle = i * goldenAngle + rand() * 0.5 - 0.25;
+    const dist = (0.15 + rand() * 0.85) * (i < 2 ? 0.3 : 1);
+    nodes.push({
+      xPct: cxPct + Math.cos(angle) * dist * spreadPctX * (0.5 + rand()),
+      yPct: cyPct + Math.sin(angle) * dist * spreadPctY * (0.5 + rand()),
+      activityBase: randRange(0.2, 0.8), activityPhase: rand() * Math.PI * 2,
+      twinkleSpeed: randRange(0.2, 0.8), twinklePhase: rand() * Math.PI * 2,
+      flarePhase: rand() * Math.PI * 2, flareSpeed: randRange(0.1, 0.4),
+      waterPhase: rand() * Math.PI * 2, waterSpeedX: randRange(0.2, 0.6), waterSpeedY: randRange(0.1, 0.4),
+      waterRadiusBase: randRange(1.2, 2.8), rBase: randRange(0.8, 2.5),
+      x: 0, y: 0, r: 0
+    });
+  }
+  return nodes;
+}
+
+function genConns(nodes, maxDistPct){
+  const conns =[];
+  for(let i = 0; i < nodes.length; i++){
+    let best = -1, bestD = maxDistPct;
+    for(let j = i + 1; j < nodes.length; j++){
+      const d = Math.hypot(nodes[j].xPct - nodes[i].xPct, nodes[j].yPct - nodes[i].yPct);
+      if(d < bestD){ bestD = d; best = j; }
+    }
+    if(best >= 0) conns.push({ a: i, b: best, baseAlpha: 0.25 });
+  }
+  return conns;
+}
+
+const constellationDefs =[
+  { id: 'midnight', name: 'Midnight Whispers', cxPct: 0.25, cyPct: 0.35, spreadX: 0.12, spreadY: 0.1, count: 14, color:[170, 195, 235], labelOffset: { x: -20, y: 70 } },
+  { id: 'heart', name: 'Heart Matters', cxPct: 0.75, cyPct: 0.25, spreadX: 0.1, spreadY: 0.09, count: 12, color:[235, 170, 155], labelOffset: { x: -10, y: 65 } },
+  { id: 'growing', name: 'Growing Pains', cxPct: 0.2, cyPct: 0.75, spreadX: 0.11, spreadY: 0.09, count: 12, color:[225, 200, 110], labelOffset: { x: -30, y: 60 } },
+  { id: 'life', name: 'Life Reflections', cxPct: 0.8, cyPct: 0.65, spreadX: 0.12, spreadY: 0.08, count: 10, color:[180, 210, 170], labelOffset: { x: -15, y: 55 } },
+  { id: 'lonely', name: 'Lonely Nights', cxPct: 0.85, cyPct: 0.45, spreadX: 0.14, spreadY: 0.09, count: 12, color:[195, 180, 230], labelOffset: { x: -20, y: 55 } },
+];
+
+const clusters = constellationDefs.map(d => {
+  const nodes = genNodes(d.cxPct, d.cyPct, d.count, d.spreadX, d.spreadY);
+  if(d.id === 'lonely'){ nodes[0].rBase = 4; nodes[0].waterRadiusBase = 3.5; nodes[0].activityBase = 0.95; }
+  return { 
+    ...d, nodes, connections: genConns(nodes, 0.08), 
+    fadeIn: 0, fadeSpeed: 0.35 + Math.random() * 0.9, driftPhaseX: rand() * Math.PI * 2, driftPhaseY: rand() * Math.PI * 2
+  };
+});
+
+function regeneratePositions(){
+  bgStars.forEach(s => { s.x = s.xPct * W; s.y = s.yPct * H; });
+  clusters.forEach(c => { c.nodes.forEach(n => { n.x = n.xPct * W; n.y = n.yPct * H; n.r = n.rBase * Math.min(W, H) / 844; }); });
+  clusters.forEach(c => {
+    const label = labelEls[c.id];
+    if(label){
+      const cx = c.nodes.reduce((s,n) => s + n.x, 0) / c.nodes.length;
+      const cy = c.nodes.reduce((s,n) => s + n.y, 0) / c.nodes.length;
+      label.style.left = (cx + c.labelOffset.x) + 'px'; label.style.top = (cy + c.labelOffset.y) + 'px';
+    }
+  });
+}
+
+const labelEls = {};
+const mainView = document.getElementById('mainView');
+clusters.forEach(c => {
+  const el = document.createElement('div');
+  el.className = 'constellation-label'; el.textContent = c.name;
+  mainView.appendChild(el); labelEls[c.id] = el;
+});
+
+let parallaxX = 0, parallaxY = 0, targetPX = 0, targetPY = 0;
+let cursorX = window.innerWidth/2, cursorY = window.innerHeight/2;
+let explorerCurrentX = 0, explorerCurrentY = 0, explorerCurrentRot = 0;
+let isTransitioning = false, transitionTarget = null; 
+
+app.addEventListener('mousemove', e => {
+  cursorX = e.clientX; cursorY = e.clientY;
+  targetPX = (cursorX / W - 0.5) * 10; targetPY = (cursorY / H - 0.5) * 6;
+});
+
+window.addEventListener('deviceorientation', e => {
+  if (e.gamma !== null && e.beta !== null) {
+    cursorX = W/2 + e.gamma * (W/45); cursorY = H/2 + (e.beta - 45) * (H/45);
+  }
+});
+
+function drawLanternPath(ctx, w, h) {
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.35, -h / 2); ctx.lineTo(w * 0.35, -h / 2);
+  ctx.bezierCurveTo(w * 0.6, -h * 0.2, w * 0.6, h * 0.3, w * 0.4, h / 2);
+  ctx.lineTo(-w * 0.4, h / 2);
+  ctx.bezierCurveTo(-w * 0.6, h * 0.3, -w * 0.6, -h * 0.2, -w * 0.35, -h / 2);
+  ctx.closePath();
+}
+
+function triggerTransition(clusterName, cx, cy, clusterColor) {
+  if(isTransitioning) return;
+  isTransitioning = true;
+  transitionTarget = { x: cx, y: cy };
+
+  let glow = document.createElement('div');
+  glow.className = 'expanding-glow';
+  glow.style.left = cx + 'px'; glow.style.top = cy + 'px';
+
+  if (isLightTheme) {
+    glow.style.background = `radial-gradient(circle, rgba(245,180,80,1) 0%, transparent 80%)`;
+    glow.style.mixBlendMode = 'normal';
+  } else {
+    glow.style.background = `radial-gradient(circle, rgba(${clusterColor[0]},${clusterColor[1]},${clusterColor[2]},1) 0%, transparent 80%)`;
+    glow.style.mixBlendMode = 'screen';
+  }
+
+  document.body.appendChild(glow);
+  void glow.offsetWidth; glow.classList.add('active');
+
+  setTimeout(() => {
+    openReading(clusterName, clusterColor);
+    setTimeout(() => { glow.style.opacity = '0'; setTimeout(() => glow.remove(), 1500); }, 500);
+  }, 1200);
+}
+
+canvas.addEventListener('click', e => {
+  if(isTransitioning || !greetingDone) return;
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+
+  for(const c of clusters){
+    if(c.fadeIn < 0.9) continue;
+
+    let clCenterX = 0, clCenterY = 0;
+    const clDriftX = themeT > 0 ? Math.sin(time * 0.2 + c.driftPhaseX) * 20 * themeT : 0;
+    const clDriftY = themeT > 0 ? Math.cos(time * 0.15 + c.driftPhaseY) * 10 * themeT : 0;
+
+    c.nodes.forEach(n => { clCenterX += n.x; clCenterY += n.y; });
+    clCenterX = clCenterX / c.nodes.length + parallaxX * 0.5 + clDriftX;
+    clCenterY = clCenterY / c.nodes.length + parallaxY * 0.5 + clDriftY;
+
+    for(const n of c.nodes){
+      const driftX = themeT > 0 ? Math.sin(time * n.waterSpeedX * 2 + n.waterPhase) * 12 * themeT : 0;
+      const driftY = themeT > 0 ? Math.cos(time * n.waterSpeedY + n.waterPhase) * 6 * themeT : 0;
+      const nx = n.x + parallaxX * 0.5 + clDriftX + driftX; const ny = n.y + parallaxY * 0.5 + clDriftY + driftY;
+
+      let act = n.activityBase + Math.sin(time * 0.15 + n.activityPhase) * 0.3;
+      let activity = Math.max(0.05, Math.min(1, act));
+      let hitR = (n.waterRadiusBase || n.r) * 15 * (0.8 + activity);
+
+      if(Math.hypot(mx - nx, my - ny) < Math.max(30, hitR)){
+        triggerTransition(c.name, clCenterX, clCenterY, c.color); return;
+      }
+    }
+  }
+});
+
+let time = 0, lastFrame = performance.now(), greetingDone = false;
+const boatContainer = document.getElementById('boat-container');
+const capsuleContainer = document.getElementById('capsule-container');
+
+function draw(){
+  const now = performance.now();
+  const dt = Math.min((now - lastFrame) / 1000, 0.05);
+  lastFrame = now; time += dt;
+
+  const targetT = isLightTheme ? 1 : 0;
+  if(Math.abs(themeT - targetT) > 0.001) themeT += (targetT - themeT) * dt * THEME_SPEED * 3;
+
+  parallaxX += (targetPX - parallaxX) * 0.03; parallaxY += (targetPY - parallaxY) * 0.03;
+
+  let targetExplorerX, targetExplorerY, targetExplorerRot;
+  if (isTransitioning && transitionTarget) {
+    targetExplorerX = transitionTarget.x - W/2; targetExplorerY = transitionTarget.y - H/2; targetExplorerRot = 0;
+    explorerCurrentX += (targetExplorerX - explorerCurrentX) * 0.015;
+    explorerCurrentY += (targetExplorerY - explorerCurrentY) * 0.015;
+    explorerCurrentRot += (targetExplorerRot - explorerCurrentRot) * 0.02;
+  } else {
+    targetExplorerX = (cursorX - W/2) * 0.08; targetExplorerY = (cursorY - H/2) * 0.08; targetExplorerRot = (cursorX - W/2) * 0.015; 
+    explorerCurrentX += (targetExplorerX - explorerCurrentX) * 0.012; 
+    explorerCurrentY += (targetExplorerY - explorerCurrentY) * 0.012;
+    explorerCurrentRot += (targetExplorerRot - explorerCurrentRot) * 0.015;
+  }
+  
+  const transformStr = `translate(${explorerCurrentX}px, ${explorerCurrentY}px) rotate(${explorerCurrentRot}deg)`;
+  if (boatContainer) boatContainer.style.transform = transformStr;
+  if (capsuleContainer) capsuleContainer.style.transform = transformStr;
+
+  const moonBreathe = Math.sin(time * 0.15) * 0.5 + 0.5;
+  const cDarkC =[10, 10, 18], cDarkE =[4, 4, 10];
+  const cLightC =[240, 244, 248], cLightE =[221, 227, 236]; 
+  const cCenter = lerpColor(cDarkC, cLightC, themeT);
+  const cEdge = lerpColor(cDarkE, cLightE, themeT);
+  
+  const bgGrad = ctx.createRadialGradient(W*0.5, H*0.4, 0, W*0.5, H*0.4, Math.max(W,H)*(0.6 + 0.3 * moonBreathe));
+  bgGrad.addColorStop(0, `rgb(${cCenter.join(',')})`); bgGrad.addColorStop(1, `rgb(${cEdge.join(',')})`);
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
+
+  if (themeT > 0) {
+    ctx.lineWidth = 1;
+    waterRipples.forEach(r => {
+      const alpha = (Math.sin(time * r.speed + r.phase) + 1) * 0.5 * 0.08 * themeT;
+      if (alpha > 0.01) {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`; ctx.beginPath();
+        const rx = W/2 + Math.sin(time * r.speed * 0.5 + r.phase) * (W/3); const y = r.yPct * H; const wStr = r.widthPct * W;
+        ctx.moveTo(rx - wStr/2, y); ctx.lineTo(rx + wStr/2, y); ctx.stroke();
+      }
+    });
+  }
+
+  if (themeT < 1) {
+    const darkAlphaMul = 1 - themeT;
+    bgStars.forEach(s => {
+      const px = parallaxX * s.layer * 0.5, py = parallaxY * s.layer * 0.5;
+      const twinkle = Math.sin(time * s.twinkleSpeed + s.twinklePhase);
+      const alpha = s.baseAlpha * Math.min(1, 0.8 + twinkle * 0.3) * darkAlphaMul; 
+      ctx.globalAlpha = Math.max(0, alpha);
+      ctx.fillStyle = s.warmth > 0.7 ? `rgba(240,225,185,1)` : (s.warmth > 0.4 ? `rgba(210,218,240,1)` : `rgba(195,200,220,1)`);
+      ctx.beginPath(); ctx.arc(s.x + px, s.y + py, s.r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  if(greetingDone){ clusters.forEach(c => { if(c.fadeIn < 1) c.fadeIn = Math.min(1, c.fadeIn + dt * c.fadeSpeed); }); }
+
+  clusters.forEach(c => {
+    const fade = c.fadeIn; if(fade <= 0) return;
+    const clDriftX = themeT > 0 ? Math.sin(time * 0.2 + c.driftPhaseX) * 20 * themeT : 0;
+    const clDriftY = themeT > 0 ? Math.cos(time * 0.15 + c.driftPhaseY) * 10 * themeT : 0;
+    let clCenterX = 0, clCenterY = 0;
+    c.nodes.forEach(n => { clCenterX += n.x; clCenterY += n.y; });
+    clCenterX = clCenterX / c.nodes.length + parallaxX * 0.5 + clDriftX;
+    clCenterY = clCenterY / c.nodes.length + parallaxY * 0.5 + clDriftY;
+
+    if (themeT < 1) {
+      c.connections.forEach(conn => {
+        const aNode = c.nodes[conn.a], bNode = c.nodes[conn.b];
+        const ax = aNode.x + parallaxX * 0.5, ay = aNode.y + parallaxY * 0.5;
+        const bx = bNode.x + parallaxX * 0.5, by = bNode.y + parallaxY * 0.5;
+        const aAct = aNode.activityBase + Math.sin(time * 0.15 + aNode.activityPhase)*0.3;
+        const bAct = bNode.activityBase + Math.sin(time * 0.15 + bNode.activityPhase)*0.3;
+        const clampedAct = Math.max(0.1, Math.min(1, (aAct + bAct)/2));
+        const alphaLine = Math.max(0.01, conn.baseAlpha * fade * (1 - themeT) * clampedAct * 1.5);
+        ctx.strokeStyle = `rgba(${c.color.join(',')},${alphaLine})`; ctx.lineWidth = 0.9;
+        ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      });
+    }
+
+    let clusterTotalActivity = 0;
+    c.nodes.forEach(n => {
+      const driftX = themeT > 0 ? Math.sin(time * n.waterSpeedX * 2 + n.waterPhase) * 12 * themeT : 0;
+      const driftY = themeT > 0 ? Math.cos(time * n.waterSpeedY + n.waterPhase) * 6 * themeT : 0;
+      const nx = n.x + parallaxX * 0.5 + clDriftX + driftX, ny = n.y + parallaxY * 0.5 + clDriftY + driftY;
+      let act = n.activityBase + Math.sin(time * 0.15 + n.activityPhase) * 0.3;
+      let activity = Math.max(0.05, Math.min(1, act)); clusterTotalActivity += activity;
+
+      if (themeT > 0) {
+        const waterOp = themeT, baseAlpha = (0.2 + activity * 0.7) * waterOp * fade;
+        const scale = n.waterRadiusBase * (0.8 + activity * 0.8) * (0.5 + fade * 0.5); 
+        const w = scale * 4, h = scale * 5.2;
+
+        ctx.save(); ctx.translate(nx, ny);
+        const breathe = 0.85 + 0.15 * Math.sin(time * n.twinkleSpeed * 1.5 + n.waterPhase);
+        ctx.globalAlpha = baseAlpha * breathe;
+        const glowR = h * (1.0 + activity * 1.8);
+        const gGlow = ctx.createRadialGradient(0, h/2, 0, 0, h/2, glowR);
+        gGlow.addColorStop(0, `rgba(245, 180, 80, ${0.2 + activity * 0.3})`); gGlow.addColorStop(1, `rgba(245, 180, 80, 0)`);
+        ctx.fillStyle = gGlow; ctx.beginPath(); ctx.arc(0, h/2, glowR, 0, Math.PI*2); ctx.fill();
+
+        const gBody = ctx.createLinearGradient(0, -h/2, 0, h/2);
+        gBody.addColorStop(0, '#F5C97A'); gBody.addColorStop(1, '#E8965A');
+
+        ctx.save(); ctx.translate(0, h + 3); ctx.scale(1, -0.4);
+        ctx.globalAlpha *= 0.25; ctx.fillStyle = gBody; drawLanternPath(ctx, w, h); ctx.fill(); ctx.restore();
+
+        ctx.strokeStyle = '#C8783A'; ctx.lineWidth = Math.max(0.8, scale * 0.3); ctx.beginPath(); const tLen = h * 0.4;
+        ctx.moveTo(0, h/2); ctx.lineTo(0, h/2 + tLen); ctx.moveTo(-w*0.2, h/2); ctx.lineTo(-w*0.25, h/2 + tLen * 0.8);
+        ctx.moveTo(w*0.2, h/2); ctx.lineTo(w*0.25, h/2 + tLen * 0.8); ctx.stroke();
+        ctx.fillStyle = gBody; drawLanternPath(ctx, w, h); ctx.fill(); ctx.restore();
+      }
+
+      if (themeT < 1) {
+        const starOp = 1 - themeT, cr = c.color[0], cg = c.color[1], cb = c.color[2];
+        const twinkle = Math.sin(time * n.twinkleSpeed + n.twinklePhase);
+        const brightness = (0.1 + activity * 0.8) * fade * (0.8 + 0.2 * twinkle); 
+
+        const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 8);
+        g2.addColorStop(0, `rgba(${cr},${cg},${cb},${0.4 * brightness * starOp})`); g2.addColorStop(1, 'transparent');
+        ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(nx, ny, n.r * 8, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(255,252,245,${0.9 * brightness * starOp})`;
+        ctx.beginPath(); ctx.arc(nx, ny, n.r, 0, Math.PI * 2); ctx.fill();
+
+        if (activity > 0.4) {
+          const flare = Math.sin(time * n.flareSpeed + n.flarePhase);
+          const spikeAlpha = (0.05 + flare * 0.05) * starOp * activity * fade;
+          const spikeLen = n.r * (3 + flare * 2 + activity * 4);
+          ctx.strokeStyle = `rgba(${cr},${cg},${cb},${spikeAlpha})`; ctx.lineWidth = 0.5;
+          ctx.beginPath(); ctx.moveTo(nx - spikeLen, ny); ctx.lineTo(nx + spikeLen, ny); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(nx, ny - spikeLen); ctx.lineTo(nx, ny + spikeLen); ctx.stroke();
+        }
+      }
+    });
+
+    if(c.fadeIn < 0.9) return;
+    const label = labelEls[c.id];
+    if(themeT > 0) label.style.transform = `translate(${clDriftX}px, ${clDriftY}px)`;
+    else label.style.transform = `translate(0, 0)`;
+
+    let distToCursor = Math.hypot(clCenterX - cursorX, clCenterY - cursorY);
+    let avgActivity = clusterTotalActivity / c.nodes.length;
+    if (distToCursor < 180 || avgActivity > 0.65) label.classList.add('visible');
+    else label.classList.remove('visible');
+  });
+
+  requestAnimationFrame(draw);
+}
+
+resize(); draw();
+
+/* ════════════════════════════════════
+   UI INTERACTIONS & SCREENS
+   ════════════════════════════════════ */
+
+const screenReading = document.getElementById('screen-reading');
+const screenCompose = document.getElementById('screen-compose');
+const screenProfile = document.getElementById('screen-profile');
+const screenSettings = document.getElementById('screen-settings');
+const greeting = document.getElementById('greeting');
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon = document.getElementById('themeIcon');
+const themeLabel = document.getElementById('themeLabel');
+const greetMain = document.getElementById('greetMain');
+const greetSub = document.getElementById('greetSub');
+
+themeToggle.addEventListener('click', () => {
+  isLightTheme = !isLightTheme;
+  document.documentElement.classList.toggle('light-theme', isLightTheme);
+  
+  if (isLightTheme) {
+    themeLabel.textContent = '星空'; themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />';
+    greetMain.style.opacity = 0; greetSub.style.opacity = 0;
+    setTimeout(() => { greetMain.textContent = "Where does your heart want to drift?"; greetSub.textContent = "点击湖面的微光，倾听它"; greetMain.style.opacity = 1; greetSub.style.opacity = 1; }, 400);
+  } else {
+    themeLabel.textContent = '水面'; themeIcon.innerHTML = '<path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />';
+    greetMain.style.opacity = 0; greetSub.style.opacity = 0;
+    setTimeout(() => { greetMain.textContent = "心事了吗？这里有人"; greetSub.textContent = "点击一颗发光的星，走进它"; greetMain.style.opacity = 1; greetSub.style.opacity = 1; }, 400);
+  }
+});
+
+greeting.addEventListener('animationend', () => {
+  greeting.classList.add('settled'); greetingDone = true;
+  document.documentElement.classList.add('app-ready');
+});
+
+// UI Navigation Handlers
+function closeAllScreens() {
+  [screenReading, screenCompose, screenProfile, screenSettings].forEach(s => s.classList.remove('visible'));
+  greeting.classList.remove('hidden');
+  isTransitioning = false; transitionTarget = null;
+}
+
+function openReading(categoryName, clusterColor){
+  document.getElementById('readingCategory').textContent = categoryName;
+  const warmGlow = document.getElementById('warmGlow');
+  if (!isLightTheme && clusterColor) {
+    warmGlow.style.background = `radial-gradient(ellipse at 50% 50%, rgba(${clusterColor[0]},${clusterColor[1]},${clusterColor[2]},0.15) 0%, transparent 60%)`;
+  } else { warmGlow.style.background = ''; }
+  closeAllScreens(); screenReading.classList.add('visible'); greeting.classList.add('hidden');
+}
+
+function openCompose(){ closeAllScreens(); screenCompose.classList.add('visible'); greeting.classList.add('hidden'); }
+function openProfile(){ closeAllScreens(); screenProfile.classList.add('visible'); greeting.classList.add('hidden'); }
+function openSettings(){ screenSettings.classList.add('visible'); }
+
+document.getElementById('closeReading').addEventListener('click', closeAllScreens);
+document.getElementById('closeCompose').addEventListener('click', closeAllScreens);
+document.getElementById('closeProfile').addEventListener('click', closeAllScreens);
+document.getElementById('closeSettings').addEventListener('click', () => screenSettings.classList.remove('visible'));
+
+document.getElementById('readingBack').addEventListener('click', closeAllScreens);
+document.getElementById('composeBack').addEventListener('click', closeAllScreens);
+document.getElementById('openSettings').addEventListener('click', openSettings);
+
+document.querySelectorAll('[data-action="compose"]').forEach(el => el.addEventListener('click', openCompose));
+document.querySelectorAll('[data-action="profile"]').forEach(el => el.addEventListener('click', openProfile));
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    if(screenSettings.classList.contains('visible')) screenSettings.classList.remove('visible');
+    else closeAllScreens();
+  }
+});
+
+/* Compose Logic */
+const textarea = document.getElementById('composeTextarea'), charCount = document.getElementById('charCount'), sendBtn = document.getElementById('composeSend');
+textarea.addEventListener('input', () => { charCount.textContent = textarea.value.length; sendBtn.disabled = textarea.value.length === 0; });
+sendBtn.addEventListener('click', () => {
+  if(!textarea.value.trim()) return;
+  const overlay = document.getElementById('sinkOverlay'), sinkText = document.getElementById('sinkText'), sinkMsg = document.getElementById('sinkMessage');
+  sinkText.textContent = textarea.value; overlay.classList.add('active');
+  setTimeout(() => sinkText.classList.add('sinking'), 300); setTimeout(() => sinkMsg.classList.add('show'), 2500);
+  setTimeout(() => { overlay.classList.remove('active'); sinkText.classList.remove('sinking'); sinkMsg.classList.remove('show'); textarea.value = ''; charCount.textContent = '0'; sendBtn.disabled = true; closeAllScreens(); }, 5500);
+});
+
+/* Profile Logic */
+window.switchProfileTab = function(btn, tabId) {
+  document.querySelectorAll('.profile-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active');
+  document.querySelectorAll('.profile-tab-content').forEach(c => c.style.display = 'none');
+  document.getElementById('tab-' + tabId).style.display = 'block';
+};
+
+const statusToggle = document.getElementById('statusToggle');
+const statusText = document.getElementById('statusText');
+const statusDot = document.querySelector('.status-dot');
+let isOnline = true;
+statusToggle.addEventListener('click', () => {
+  isOnline = !isOnline;
+  statusText.textContent = isOnline ? '在线' : '隐身';
+  statusDot.style.background = isOnline ? '#4caf50' : '#888';
+  statusDot.style.boxShadow = isOnline ? '0 0 8px #4caf50' : 'none';
+});
+
+/* Settings Feedback Logic */
+let selectedRating = '好评';
+window.toggleFeedback = function() {
+  const box = document.getElementById('feedbackBox');
+  box.classList.toggle('active');
+};
+window.selectRate = function(btn, rate) {
+  document.querySelectorAll('.rate-btn').forEach(b => b.classList.remove('selected'));
+  btn.classList.add('selected');
+  selectedRating = rate;
+};
+window.submitFeedback = function() {
+  const text = document.getElementById('feedbackText').value;
+  const body = `评价：${selectedRating}%0D%0A建议：%0D%0A${text}`;
+  window.location.href = `mailto:3249459623@qq.com?subject=Tree Hole 反馈&body=${body}`;
+  toggleFeedback();
+  document.getElementById('feedbackText').value = '';
+};
+
+// Canvas Pointer Block
+function updateCanvasPointer(){
+  const anyOpen = [screenReading, screenCompose, screenProfile, screenSettings].some(s => s.classList.contains('visible'));
+  document.getElementById('canvas-container').style.pointerEvents = anyOpen ? 'none' : 'auto';
+}
+const observer = new MutationObserver(updateCanvasPointer);[screenReading, screenCompose, screenProfile, screenSettings].forEach(s => observer.observe(s, { attributes: true, attributeFilter:['class'] }));
+
+})();
+</script>
+</body>
+</html>

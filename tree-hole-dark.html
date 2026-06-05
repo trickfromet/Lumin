@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><script data-od-sandbox-shim>(function(){
+  function makeStore(){
+    var data = {};
+    var api = {
+      getItem: function(k){ return Object.prototype.hasOwnProperty.call(data, k) ? data[k] : null; },
+      setItem: function(k, v){ data[k] = String(v); },
+      removeItem: function(k){ delete data[k]; },
+      clear: function(){ data = {}; },
+      key: function(i){ return Object.keys(data)[i] || null; }
+    };
+    Object.defineProperty(api, 'length', { get: function(){ return Object.keys(data).length; } });
+    return api;
+  }
+  function tryShim(name){
+    var works = false;
+    try { works = !!window[name] && typeof window[name].getItem === 'function'; void window[name].length; }
+    catch (_) { works = false; }
+    if (works) return;
+    try { Object.defineProperty(window, name, { configurable: true, value: makeStore() }); }
+    catch (_) { try { window[name] = makeStore(); } catch (__) {} }
+  }
+  tryShim('localStorage');
+  tryShim('sessionStorage');
+})();</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tree Hole — 星空树洞</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@200;300;400;600&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --void:#06060a;
+  --amber:#e8915a;
+  --amber-dim:rgba(232,145,90,.5);
+  --amber-glow:rgba(232,145,90,.15);
+  --warm-white:rgba(248,242,232,1);
+  --warm-muted:#f4f7f9;
+  --warm-faint:#f4f7f9;
+  --font-serif:'Noto Serif SC','Cormorant Garamond',Georgia,serif;
+  --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+}
+
+html,body{
+  width:100%;height:100%;
+  overflow:hidden;
+  background:var(--void);
+  font-family:var(--font-body);
+  color:var(--warm-white);
+  -webkit-font-smoothing:antialiased;
+  cursor:default;
+}
+
+.app{
+  position:relative;
+  width:100vw;height:100vh;
+  overflow:hidden;
+  background:var(--void);
+}
+
+#spaceCanvas{position:absolute;inset:0;z-index:1;width:100%;height:100%}
+
+.grain{
+  position:absolute;inset:0;z-index:85;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size:200px 200px;
+  mix-blend-mode:overlay;
+}
+
+.vignette{
+  position:absolute;inset:0;z-index:80;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(0,0,0,.5) 100%);
+}
+
+/* ── UI Layer ── */
+.ui-layer{
+  position:absolute;inset:0;z-index:10;
+  pointer-events:none;
+}
+.ui-layer *{pointer-events:auto}
+
+.top-bar{
+  position:absolute;top:0;left:0;right:0;z-index:25;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:28px 48px;
+  background:linear-gradient(to bottom, rgba(6,6,10,.7) 0%, transparent 100%);
+}
+
+.top-left{
+  display:flex;align-items:center;gap:16px;
+}
+
+.theme-toggle{
+  display:flex;align-items:center;gap:8px;
+  background:none;border:1px solid rgba(255,255,255,.08);
+  color:var(--warm-muted);cursor:pointer;
+  padding:6px 10px;border-radius:16px;
+  font-family:var(--font-body);font-size:11px;
+  letter-spacing:.12em;text-transform:uppercase;
+  transition:color .3s ease, border-color .3s ease, opacity .3s ease;
+  opacity:.6;
+}
+.theme-toggle svg{width:14px;height:14px}
+.theme-toggle:hover{color:var(--warm-white);border-color:rgba(255,255,255,.2);opacity:.9}
+
+.app-wordmark{
+  font-family:var(--font-serif);font-weight:200;
+  font-size:13px;letter-spacing:.35em;text-transform:uppercase;
+  color:var(--warm-muted);opacity:.9;
+  user-select:none;
+}
+
+.top-nav{
+  display:flex;gap:36px;align-items:center;
+}
+.top-nav-link{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:13px;letter-spacing:.06em;
+  color:var(--warm-muted);opacity:.95;
+  cursor:pointer;transition:opacity .3s ease, color .3s ease;
+  background:none;border:none;padding:6px 0;
+  text-decoration:none;
+}
+.top-nav-link:hover{opacity:.85;color:var(--warm-white)}
+.top-nav-link.active{opacity:.95;color:var(--amber)}
+
+.greeting{
+  position:absolute;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:15;
+  text-align:center;
+  pointer-events:none;
+  animation:greetingSequence 5s ease forwards;
+}
+
+@keyframes greetingSequence{
+  0%{opacity:0;top:50%;left:50%;transform:translate(-50%,-50%)}
+  10%{opacity:1;top:50%;left:50%;transform:translate(-50%,-50%)}
+  40%{opacity:1;top:50%;left:50%;transform:translate(-50%,-50%)}
+  55%{opacity:0;top:50%;left:50%;transform:translate(-50%,-50%)}
+  56%{opacity:0;top:86px;left:50%;transform:translate(-50%,0)}
+  66%{opacity:0;top:86px;left:50%;transform:translate(-50%,0)}
+  100%{opacity:1;top:86px;left:50%;transform:translate(-50%,0)}
+}
+
+.greeting.hidden{opacity:0;transition:opacity .5s ease}
+
+.greeting-text{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:clamp(22px,2.5vw,36px);
+  line-height:1.7;letter-spacing:.04em;
+  color:var(--warm-white);
+  text-shadow:0 0 40px rgba(0,0,0,.6);
+  max-width:600px;
+  transition:font-size 1.2s cubic-bezier(0.22,0.61,0.36,1), letter-spacing 1.2s cubic-bezier(0.22,0.61,0.36,1);
+  will-change:font-size, letter-spacing;
+}
+
+.greeting-sub{
+  margin-top:16px;
+  font-family:var(--font-body);font-weight:300;
+  font-size:clamp(11px,1vw,14px);
+  letter-spacing:.12em;
+  color:rgba(210,200,185,.6);
+  transition:font-size 1.2s cubic-bezier(0.22,0.61,0.36,1), margin-top 1.2s cubic-bezier(0.22,0.61,0.36,1), letter-spacing 1.2s cubic-bezier(0.22,0.61,0.36,1);
+  will-change:font-size, margin-top, letter-spacing;
+}
+
+/* After animation settles, shrink text for top position */
+.greeting.settled .greeting-text{
+  font-size:clamp(15px,1.4vw,20px);
+}
+.greeting.settled .greeting-sub{
+  font-size:clamp(10px,.85vw,12px);
+  margin-top:8px;
+}
+
+/* ── Constellation Labels ── */
+.constellation-label{
+  position:absolute;
+  white-space:nowrap;
+  font-family:var(--font-serif);
+  font-weight:300;
+  font-size:clamp(13px,1.1vw,17px);
+  letter-spacing:.08em;
+  color:rgba(180,170,155,.55);
+  pointer-events:none;
+  transition:color 1.2s ease, text-shadow 1.2s ease, opacity 1.2s ease;
+  opacity:.8;
+  text-shadow:0 0 12px rgba(0,0,0,.5);
+  user-select:none;
+}
+.constellation-label.active{
+  color:var(--amber);
+  opacity:.9;
+  text-shadow:0 0 18px var(--amber-glow), 0 0 40px rgba(232,145,90,.08);
+}
+.constellation-label.pending{
+  opacity:0;
+  transition:none;
+}
+.constellation-label.fading-in{
+  transition:opacity 1.5s ease;
+}
+
+/* ── Bottom Bar ── */
+.bottom-bar{
+  position:absolute;bottom:0;left:0;right:0;z-index:20;
+  display:flex;align-items:center;justify-content:center;
+  gap:48px;
+  padding:24px 48px 32px;
+  background:linear-gradient(to top, rgba(6,6,10,.8) 0%, transparent 100%);
+}
+
+.nav-item{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  cursor:pointer;opacity:.55;transition:opacity .3s ease;
+  background:none;border:none;padding:8px 12px;
+}
+.nav-item:hover,.nav-item.active{opacity:.7}
+.nav-item svg{width:20px;height:20px}
+.nav-item span{
+  font-family:var(--font-body);font-size:14px;
+  letter-spacing:.12em;color:var(--warm-muted);
+}
+
+.sound-indicator{
+  position:absolute;bottom:32px;right:48px;z-index:20;
+  display:flex;align-items:center;gap:6px;
+  opacity:.2;cursor:pointer;transition:opacity .3s ease;
+  background:none;border:none;padding:8px;
+}
+.sound-indicator:hover{opacity:.45}
+.sound-indicator svg{width:13px;height:13px;color:var(--warm-muted)}
+.sound-bars{display:flex;gap:2px;align-items:flex-end;height:10px}
+.sound-bar{width:1.5px;background:var(--warm-muted);border-radius:1px;animation:sBarPulse 1.5s ease-in-out infinite}
+.sound-bar:nth-child(1){height:3px;animation-delay:0s}
+.sound-bar:nth-child(2){height:6px;animation-delay:.2s}
+.sound-bar:nth-child(3){height:4px;animation-delay:.4s}
+@keyframes sBarPulse{0%,100%{opacity:.2}50%{opacity:.6}}
+
+/* ── Screens ── */
+.screen{
+  position:absolute;inset:0;z-index:50;
+  display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;
+  transition:opacity .6s ease;
+  background:rgba(6,6,10,.92);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+}
+.screen.visible{
+  opacity:1;pointer-events:auto;
+}
+
+.screen-close{
+  position:absolute;top:28px;right:48px;z-index:10;
+  background:none;border:none;cursor:pointer;
+  padding:10px;opacity:.4;transition:opacity .3s ease;
+}
+.screen-close:hover{opacity:.8}
+.screen-close svg{width:22px;height:22px}
+
+/* ── Reading Screen ── */
+.reading-layout{
+  display:flex;
+  width:100%;height:100%;
+  overflow-y:auto;
+}
+
+.reading-content{
+  flex:1;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  padding:100px 80px 80px;
+  max-width:800px;
+  margin:0 auto;
+}
+
+.reading-category{
+  font-family:var(--font-body);font-size:11px;
+  letter-spacing:.2em;text-transform:uppercase;
+  color:var(--amber-dim);margin-bottom:32px;
+  align-self:flex-start;
+}
+
+.reading-text{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:clamp(18px,1.6vw,24px);
+  line-height:2;letter-spacing:.02em;
+  color:var(--warm-white);
+  max-width:620px;
+  align-self:flex-start;
+}
+.reading-text p{margin-bottom:36px}
+
+.reading-time{
+  margin-top:40px;align-self:flex-start;
+  font-family:var(--font-body);font-size:12px;
+  color:var(--warm-faint);letter-spacing:.06em;
+}
+
+.reading-actions{
+  margin-top:60px;
+  display:flex;flex-direction:column;align-items:center;gap:24px;
+  align-self:flex-start;
+}
+
+.reading-back{
+  align-self:flex-start;
+  display:flex;align-items:center;gap:8px;
+  background:none;border:none;cursor:pointer;
+  padding:6px 4px 10px;color:var(--warm-muted);
+  margin-top:-6px;margin-left:-10px;
+  font-family:var(--font-body);font-size:14px;
+  letter-spacing:.08em;text-transform:uppercase;
+  transition:color .3s ease, opacity .3s ease;
+  opacity:.7;
+}
+.reading-back svg{width:16px;height:16px}
+.reading-back:hover{color:var(--warm-white);opacity:1}
+
+.reading-hint{
+  font-family:var(--font-serif);font-size:14px;
+  font-style:italic;color:var(--warm-muted);
+  letter-spacing:.04em;opacity:.5;
+}
+
+.reading-btns{display:flex;gap:40px;align-items:center}
+
+.reading-btn{
+  background:none;border:none;
+  font-family:var(--font-serif);font-size:14px;
+  color:var(--warm-muted);cursor:pointer;
+  padding:12px 40px;letter-spacing:.04em;
+  transition:color .3s ease;
+  position:relative;
+}
+.reading-btn:hover{color:var(--warm-white)}
+.reading-btn.primary{color:var(--amber)}
+.reading-btn.primary:hover{text-shadow:0 0 20px var(--amber-glow)}
+
+.reading-dot{width:3px;height:3px;border-radius:50%;background:var(--warm-faint)}
+
+.reading-longpress{
+  margin-top:20px;
+  font-family:var(--font-body);font-size:11px;
+  letter-spacing:.12em;color:var(--warm-faint);opacity:.4;
+}
+
+/* Warm glow overlay */
+.warm-glow{
+  position:absolute;inset:0;z-index:5;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at 50% 50%, rgba(232,145,90,.06) 0%, transparent 60%);
+  transition:opacity 2s ease;
+}
+.warm-glow.active{opacity:1;transition:opacity .8s ease}
+.warm-glow.fading{opacity:0;transition:opacity 2.5s ease}
+
+.empathy-msg{
+  position:absolute;bottom:140px;left:0;right:0;z-index:25;
+  text-align:center;
+  font-family:var(--font-serif);font-size:clamp(16px,1.3vw,22px);
+  font-style:italic;color:var(--amber);
+  opacity:0;transform:translateY(10px);
+  transition:opacity 1.2s ease, transform 1.2s ease;
+  pointer-events:none;
+}
+.empathy-msg.show{opacity:.8;transform:translateY(0)}
+
+/* Mood light */
+.mood-light{
+  position:absolute;bottom:100px;right:60px;z-index:15;
+  width:12px;height:12px;border-radius:50%;
+  background:var(--amber);
+  box-shadow:0 0 12px var(--amber-dim), 0 0 30px var(--amber-glow);
+  cursor:pointer;animation:moodBreathe 4s ease-in-out infinite;
+  transition:background .6s ease, box-shadow .6s ease;
+}
+@keyframes moodBreathe{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.75;transform:scale(1.2)}}
+
+.mood-ring{
+  position:absolute;bottom:78px;right:35px;z-index:25;
+  width:64px;height:64px;
+  pointer-events:none;opacity:0;transform:scale(.5);
+  transition:opacity .4s ease, transform .4s ease;
+}
+.mood-ring.open{opacity:1;transform:scale(1);pointer-events:auto}
+
+.mood-word{
+  position:absolute;font-family:var(--font-serif);font-size:11px;
+  color:var(--warm-muted);cursor:pointer;transition:color .3s ease;white-space:nowrap;
+}
+.mood-word:hover{color:var(--amber)}
+.mood-word:nth-child(1){top:0;left:50%;transform:translateX(-50%)}
+.mood-word:nth-child(2){top:14px;right:-12px}
+.mood-word:nth-child(3){bottom:14px;right:-12px}
+.mood-word:nth-child(4){bottom:0;left:50%;transform:translateX(-50%)}
+.mood-word:nth-child(5){bottom:14px;left:-12px}
+.mood-word:nth-child(6){top:14px;left:-12px}
+
+/* ── Compose Screen ── */
+.compose-layout{
+  display:flex;flex-direction:column;
+  width:100%;height:100%;
+  padding:80px 0 0;
+}
+
+.compose-header-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 48px 32px;
+  border-bottom:1px solid rgba(255,255,255,.04);
+}
+
+.compose-back{
+  display:flex;align-items:center;gap:8px;
+  background:none;border:none;cursor:pointer;
+  padding:6px 4px;color:var(--warm-muted);
+  font-family:var(--font-body);font-size:12px;
+  letter-spacing:.08em;text-transform:uppercase;
+  transition:color .3s ease, opacity .3s ease;
+  opacity:.7;
+}
+.compose-back svg{width:14px;height:14px}
+.compose-back:hover{color:var(--warm-white);opacity:1}
+
+.compose-category-label{
+  font-family:var(--font-serif);font-size:13px;
+  letter-spacing:.12em;color:var(--warm-faint);
+}
+
+.compose-body{
+  flex:1;display:flex;flex-direction:column;
+  padding:40px 48px;
+  max-width:800px;width:100%;
+  margin:0 auto;
+}
+
+.compose-textarea{
+  flex:1;width:100%;
+  background:transparent;border:none;outline:none;resize:none;
+  font-family:var(--font-serif);font-weight:300;
+  font-size:clamp(17px,1.4vw,22px);
+  line-height:2;letter-spacing:.02em;
+  color:var(--warm-white);caret-color:var(--amber);
+}
+.compose-textarea::placeholder{color:var(--warm-faint);font-style:italic}
+
+.compose-footer{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 48px 36px;
+  border-top:1px solid rgba(255,255,255,.04);
+  max-width:800px;width:100%;margin:0 auto;
+}
+
+.compose-char{
+  font-family:var(--font-body);font-size:12px;
+  color:var(--warm-faint);letter-spacing:.06em;
+}
+
+.compose-send{
+  background:none;border:none;cursor:pointer;
+  padding:14px 36px;border-radius:28px;
+  border:1px solid var(--amber-dim);
+  font-family:var(--font-serif);font-size:14px;
+  letter-spacing:.1em;color:var(--amber);
+  transition:all .3s ease;
+}
+.compose-send:hover{
+  background:rgba(232,145,90,.08);
+  border-color:var(--amber);
+  box-shadow:0 0 25px var(--amber-glow);
+}
+.compose-send:disabled{
+  opacity:.25;cursor:default;
+  border-color:var(--warm-faint);color:var(--warm-faint);
+}
+
+/* Sink animation */
+.sink-overlay{
+  position:absolute;inset:0;z-index:60;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  pointer-events:none;opacity:0;
+  background:rgba(6,6,10,.95);
+  transition:opacity .6s ease;
+}
+.sink-overlay.active{opacity:1;pointer-events:auto}
+
+.sink-text{
+  font-family:var(--font-serif);font-weight:300;
+  font-size:clamp(18px,1.5vw,24px);
+  line-height:2;letter-spacing:.02em;
+  color:var(--warm-white);max-width:500px;text-align:center;
+}
+.sink-text.sinking{animation:sinkDown 3s ease-in forwards}
+@keyframes sinkDown{
+  0%{opacity:1;transform:translateY(0)}
+  40%{opacity:.5;transform:translateY(80px)}
+  70%{opacity:.15;transform:translateY(220px);filter:blur(3px)}
+  100%{opacity:0;transform:translateY(400px);filter:blur(8px)}
+}
+
+.sink-message{
+  font-family:var(--font-serif);font-size:clamp(18px,1.5vw,26px);
+  font-style:italic;color:var(--amber);
+  letter-spacing:.08em;opacity:0;
+  transform:translateY(20px);position:absolute;top:45%;
+}
+.sink-message.show{animation:fadeInUp 1.2s ease forwards}
+@keyframes fadeInUp{
+  0%{opacity:0;transform:translateY(20px)}
+  100%{opacity:.8;transform:translateY(0)}
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:2px}
+
+/* ── Transitions ── */
+.screen-enter{animation:screenEnter .6s ease forwards}
+@keyframes screenEnter{
+  0%{opacity:0;transform:translateY(20px)}
+  100%{opacity:1;transform:translateY(0)}
+}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <canvas id="spaceCanvas"></canvas>
+  <div class="grain"></div>
+  <div class="vignette"></div>
+
+  <!-- ════ MAIN VIEW ════ -->
+  <div class="ui-layer" id="mainView">
+    <div class="top-bar">
+      <div class="top-left">
+        <div class="app-wordmark">Tree Hole</div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a1 1 0 000 18 8 8 0 010-18z"/>
+            <path d="M12 3a9 9 0 109 9"/>
+          </svg>
+          亮色
+        </button>
+      </div>
+      <nav class="top-nav">
+        <button class="top-nav-link active">广场</button>
+        <button class="top-nav-link" data-action="compose">书写</button>
+        <button class="top-nav-link">关于</button>
+      </nav>
+    </div>
+
+    <div class="greeting" id="greeting">
+      <div class="greeting-text">心事了吗？这里有人</div>
+      <div class="greeting-sub">点击一颗发光的星，走进它</div>
+    </div>
+
+    <div class="bottom-bar">
+      <button class="nav-item active" aria-label="Home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-8 9 8"/><path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10"/></svg>
+        <span>广场</span>
+      </button>
+      <button class="nav-item" data-action="compose" aria-label="Write">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span>书写</span>
+      </button>
+      <button class="nav-item" aria-label="Profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 10-16 0"/></svg>
+        <span>我</span>
+      </button>
+    </div>
+
+    <button class="sound-indicator" aria-label="Ambient sound">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 3v18M8 7v10M4 10v4M16 7v10M20 10v4"/></svg>
+      <div class="sound-bars"><div class="sound-bar"></div><div class="sound-bar"></div><div class="sound-bar"></div></div>
+    </button>
+  </div>
+
+  <!-- ════ READING SCREEN ════ -->
+  <div class="screen" id="screen-reading">
+    <div class="warm-glow" id="warmGlow"></div>
+    <div class="empathy-msg" id="empathyMsg">你不是一个人。</div>
+
+    <button class="screen-close" id="closeReading" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="rgba(220,210,195,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+    </button>
+
+    <div class="reading-layout">
+      <div class="reading-content">
+        <button class="reading-back" id="readingBack" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 6l-6 6 6 6"/>
+          </svg>
+          返回
+        </button>
+        <div class="reading-category" id="readingCategory">Midnight Whispers</div>
+        <div class="reading-text" id="readingText">
+          <p>凌晨三点，又睡不着。</p>
+          <p>窗外的路灯把影子拉得很长，像一条走不完的路。今天在公司的时候，有人问我"你还好吗"，我说"挺好的"。</p>
+          <p>其实不太好。但我不知道怎么说，也不知道该跟谁说。</p>
+          <p>有些话，说出来怕被人觉得矫情；不说，又像石头一样压在胸口。</p>
+        </div>
+        <div class="reading-time">3小时前 · 来自一个无法入睡的人</div>
+        <div class="reading-actions">
+          <div class="reading-hint">读完了</div>
+          <div class="reading-btns">
+            <button class="reading-btn primary" id="btnEmpathy">我也是</button>
+            <div class="reading-dot"></div>
+            <button class="reading-btn">写一条回声</button>
+            <div class="reading-dot"></div>
+            <button class="reading-btn">下一个故事</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mood-light" id="moodLight"></div>
+    <div class="mood-ring" id="moodRing">
+      <span class="mood-word" data-color="rgba(100,140,200,.8)">难过</span>
+      <span class="mood-word" data-color="rgba(120,100,180,.8)">孤独</span>
+      <span class="mood-word" data-color="rgba(220,190,80,.8)">希望</span>
+      <span class="mood-word" data-color="rgba(140,190,150,.8)">平静</span>
+      <span class="mood-word" data-color="rgba(200,120,100,.8)">愤怒</span>
+      <span class="mood-word" data-color="rgba(180,180,200,.8)">迷茫</span>
+    </div>
+  </div>
+
+  <!-- ════ COMPOSE SCREEN ════ -->
+  <div class="screen" id="screen-compose">
+    <button class="screen-close" id="closeCompose" aria-label="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="rgba(220,210,195,.6)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 6L6 18M6 6l12 12"/>
+      </svg>
+    </button>
+
+    <div class="compose-layout">
+      <div class="compose-header-inner">
+        <button class="compose-back" id="composeBack" aria-label="Back">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 6l-6 6 6 6"/>
+          </svg>
+          返回
+        </button>
+        <div class="compose-category-label">深夜碎碎念</div>
+      </div>
+      <div class="compose-body">
+        <textarea class="compose-textarea" id="composeTextarea" placeholder="把心里的话，放在这里……" maxlength="400"></textarea>
+      </div>
+      <div class="compose-footer">
+        <div class="compose-char"><span id="charCount">0</span> / 800</div>
+        <button class="compose-send" id="composeSend" disabled>放入树洞</button>
+      </div>
+    </div>
+
+    <div class="sink-overlay" id="sinkOverlay">
+      <div class="sink-text" id="sinkText"></div>
+      <div class="sink-message" id="sinkMessage">说出来了，就好。</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ════════════════════════════════════
+   CANVAS — Deep Space Renderer
+   ════════════════════════════════════ */
+
+const app = document.getElementById('app');
+const canvas = document.getElementById('spaceCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  regeneratePositions();
+}
+window.addEventListener('resize', resize);
+
+/* ── Seeded RNG ── */
+let _seed = 42;
+function srand(s){ _seed = s; }
+function rand(){
+  _seed = (_seed * 16807 + 0) % 2147483647;
+  return (_seed - 1) / 2147483646;
+}
+function randRange(a, b){ return a + rand() * (b - a); }
+
+/* ── Background Stars ── */
+const BG_COUNT = 7200;
+const bgStars = [];
+srand(7);
+for(let i = 0; i < BG_COUNT; i++){
+  const r = rand();
+  bgStars.push({
+    xPct: rand(), yPct: rand(),
+    r: r < 0.5 ? 0.4 + rand() * 0.5
+      : r < 0.8 ? 0.7 + rand() * 0.7
+      : 1.0 + rand() * 1.2,
+    baseAlpha: 0.08 + rand() * 0.22,
+    twinkleSpeed: 0.2 + rand() * 0.8,
+    twinklePhase: rand() * Math.PI * 2,
+    layer: rand() < 0.3 ? 0 : rand() < 0.6 ? 1 : 2,
+    warmth: rand(),
+    x: 0, y: 0
+  });
+}
+
+/* ── Nebulae ── */
+const nebulaDefs = [
+  { xPct: -0.05, yPct: 0.12, rxPct: 0.3, ryPct: 0.18, color: [50, 25, 95], alpha: 0.07 },
+  { xPct: 0.8, yPct: 0.3, rxPct: 0.22, ryPct: 0.16, color: [25, 35, 85], alpha: 0.06 },
+  { xPct: 0.2, yPct: 0.6, rxPct: 0.28, ryPct: 0.2, color: [60, 30, 75], alpha: 0.055 },
+  { xPct: 0.85, yPct: 0.08, rxPct: 0.18, ryPct: 0.14, color: [30, 25, 70], alpha: 0.05 },
+  { xPct: 0.1, yPct: 0.85, rxPct: 0.24, ryPct: 0.16, color: [45, 20, 80], alpha: 0.05 },
+  { xPct: 0.65, yPct: 0.7, rxPct: 0.2, ryPct: 0.14, color: [55, 25, 90], alpha: 0.05 },
+  { xPct: 0.4, yPct: 0.25, rxPct: 0.16, ryPct: 0.12, color: [35, 30, 75], alpha: 0.08 },
+  { xPct: 0.55, yPct: 0.82, rxPct: 0.22, ryPct: 0.15, color: [48, 22, 85], alpha: 0.045 },
+];
+const nebulae = nebulaDefs.map(n => ({
+  ...n, drift: 0.008 + rand() * 0.012,
+  x: 0, y: 0, rx: 0, ry: 0
+}));
+
+/* ── Background Constellations (real patterns) ── */
+const bgConstellationDefs = [
+  { name:'ursaMajor', stars:[[0,0],[.04,.02],[.07,.01],[.1,.03],[.12,.06],[.1,.09],[.07,.07]], conns:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,2]] },
+  { name:'orion', stars:[[0,0],[.01,-.04],[.03,-.03],[.02,.01],[.04,.04],[.01,.06],[-.02,.04],[-.03,.01]], conns:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,0],[3,6]] },
+  { name:'cassiopeia', stars:[[0,0],[.03,.03],[.05,0],[.08,.04],[.1,.01]], conns:[[0,1],[1,2],[2,3],[3,4]] },
+  { name:'scorpius', stars:[[0,0],[.02,.02],[.04,.03],[.06,.02],[.07,0],[.06,-.02],[.08,-.04],[.1,-.03],[.11,-.01]], conns:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,6],[6,7],[7,8]] },
+  { name:'lyra', stars:[[0,0],[.03,-.02],[.04,.02],[.02,.04],[-.01,.02]], conns:[[0,1],[1,2],[2,3],[3,4],[4,0]] },
+  { name:'cygnus', stars:[[0,0],[.02,-.04],[.04,-.02],[.04,.02],[.02,.04],[0,.02],[-.02,.04]], conns:[[0,1],[1,2],[2,0],[0,3],[3,4],[4,5],[5,0],[0,6]] },
+  { name:'leo', stars:[[0,0],[.03,-.01],[.05,.01],[.04,.04],[.01,.03],[-.02,.05]], conns:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0]] },
+  { name:'gemini', stars:[[0,0],[.01,-.04],[.03,-.03],[.04,0],[.03,.04],[.01,.03]], conns:[[0,1],[1,2],[2,3],[3,4],[4,5],[5,0],[0,3]] },
+  { name:'taurus', stars:[[0,0],[.03,.02],[.05,0],[.03,-.03],[.06,-.01],[.08,.02]], conns:[[0,1],[1,2],[2,3],[3,0],[2,4],[4,5]] },
+];
+
+srand(999);
+const bgConstellations = bgConstellationDefs.map(d => {
+  const cx = 0.05 + rand() * 0.9;
+  const cy = 0.08 + rand() * 0.84;
+  const scale = W * (0.6 + rand() * 0.5);
+  const stars = d.stars.map(s => ({
+    xPct: cx + s[0] * scale / W,
+    yPct: cy + s[1] * scale / H,
+    x: 0, y: 0
+  }));
+  return { ...d, stars, baseAlpha: 0.2 + rand() * 0.2, phase: rand() * Math.PI * 2, x: 0, y: 0 };
+});
+
+/* ── Interactive Constellations ── */
+srand(12345);
+
+function genNodes(cxPct, cyPct, count, spreadPctX, spreadPctY, activeCount){
+  const nodes = [];
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  for(let i = 0; i < count; i++){
+    const angle = i * goldenAngle + rand() * 0.5 - 0.25;
+    const dist = (0.15 + rand() * 0.85) * (i < 2 ? 0.3 : 1);
+    nodes.push({
+      xPct: cxPct + Math.cos(angle) * dist * spreadPctX * (0.5 + rand()),
+      yPct: cyPct + Math.sin(angle) * dist * spreadPctY * (0.5 + rand()),
+      active: i < activeCount,
+      baseAlpha: i < activeCount ? 0.7 + rand() * 0.3 : 0.15 + rand() * 0.25,
+      twinklePhase: rand() * Math.PI * 2,
+      twinkleSpeed: 0.25 + rand() * 0.6,
+      rBase: i < activeCount ? 1.8 + rand() * 2.2 : 0.4 + rand() * 0.9,
+      flarePhase: rand() * Math.PI * 2,
+      flareSpeed: 0.12 + rand() * 0.3,
+      x: 0, y: 0, r: 0
+    });
+  }
+  return nodes;
+}
+
+function genConns(nodes, maxDistPct){
+  const conns = [];
+  for(let i = 0; i < nodes.length; i++){
+    let best = -1, bestD = maxDistPct;
+    for(let j = i + 1; j < nodes.length; j++){
+      const d = Math.hypot(nodes[j].xPct - nodes[i].xPct, nodes[j].yPct - nodes[i].yPct);
+      if(d < bestD){ bestD = d; best = j; }
+    }
+    if(best >= 0){
+      const bothActive = nodes[i].active && nodes[best].active;
+      conns.push({ a: i, b: best, alpha: bothActive ? 0.25 : 0.12 + rand() * 0.06 });
+    }
+  }
+  for(let i = 0; i < nodes.length; i++){
+    if(rand() < 0.35){
+      let best = -1, bestD = maxDistPct * 0.7;
+      for(let j = 0; j < nodes.length; j++){
+        if(j === i || conns.some(c => (c.a===i&&c.b===j)||(c.a===j&&c.b===i))) continue;
+        const d = Math.hypot(nodes[j].xPct - nodes[i].xPct, nodes[j].yPct - nodes[i].yPct);
+        if(d < bestD){ bestD = d; best = j; }
+      }
+      if(best >= 0){
+        const bothActive = nodes[i].active && nodes[best].active;
+        conns.push({ a: i, b: best, alpha: bothActive ? 0.2 : 0.08 + rand() * 0.05 });
+      }
+    }
+  }
+  return conns;
+}
+
+const constellationDefs = [
+  {
+    id: 'midnight', name: 'Midnight Whispers',
+    cxPct: 0.15, cyPct: 0.22, spreadX: 0.12, spreadY: 0.1,
+    count: 20, activeCount: 5,
+    color: [170, 195, 235],
+    labelOffset: { x: -20, y: 70 },
+  },
+  {
+    id: 'heart', name: 'Heart Matters',
+    cxPct: 0.7, cyPct: 0.18, spreadX: 0.1, spreadY: 0.09,
+    count: 18, activeCount: 4,
+    color: [235, 170, 155],
+    labelOffset: { x: -10, y: 65 },
+  },
+  {
+    id: 'growing', name: 'Growing Pains',
+    cxPct: 0.22, cyPct: 0.52, spreadX: 0.11, spreadY: 0.09,
+    count: 16, activeCount: 3,
+    color: [225, 200, 110],
+    labelOffset: { x: -30, y: 60 },
+  },
+  {
+    id: 'life', name: 'Life Reflections',
+    cxPct: 0.68, cyPct: 0.55, spreadX: 0.12, spreadY: 0.08,
+    count: 15, activeCount: 4,
+    color: [180, 210, 170],
+    labelOffset: { x: -15, y: 55 },
+  },
+  {
+    id: 'lonely', name: 'Lonely Nights',
+    cxPct: 0.45, cyPct: 0.8, spreadX: 0.14, spreadY: 0.09,
+    count: 13, activeCount: 2,
+    color: [195, 180, 230],
+    labelOffset: { x: -20, y: 55 },
+  },
+];
+
+const constellations = constellationDefs.map(d => {
+  const nodes = genNodes(d.cxPct, d.cyPct, d.count, d.spreadX, d.spreadY, d.activeCount);
+  // Make lonely nights' main star bigger
+  if(d.id === 'lonely'){
+    nodes[0].rBase = 4;
+    nodes[0].baseAlpha = 0.95;
+  }
+  // All constellations start hidden, fade in after greeting animation
+  const fadeSpeed = 0.35 + Math.random() * 0.9; // random speed per constellation
+  return { ...d, nodes, connections: genConns(nodes, 0.08), pending: true, fadeIn: 0, fadeSpeed };
+});
+
+/* ── Position calculation (responsive) ── */
+function regeneratePositions(){
+  bgStars.forEach(s => {
+    s.x = s.xPct * W;
+    s.y = s.yPct * H;
+  });
+  nebulae.forEach(n => {
+    n.x = n.xPct * W;
+    n.y = n.yPct * H;
+    n.rx = n.rxPct * W;
+    n.ry = n.ryPct * H;
+  });
+  bgConstellations.forEach(c => {
+    c.stars.forEach(s => {
+      s.x = s.xPct * W;
+      s.y = s.yPct * H;
+    });
+  });
+  constellations.forEach(c => {
+    c.nodes.forEach(n => {
+      n.x = n.xPct * W;
+      n.y = n.yPct * H;
+      n.r = n.rBase * Math.min(W, H) / 844;
+    });
+  });
+  // Update label positions
+  constellations.forEach(c => {
+    const label = labelEls[c.id];
+    if(label){
+      const cx = c.nodes.reduce((s,n) => s + n.x, 0) / c.nodes.length;
+      const cy = c.nodes.reduce((s,n) => s + n.y, 0) / c.nodes.length;
+      label.style.left = (cx + c.labelOffset.x) + 'px';
+      label.style.top = (cy + c.labelOffset.y) + 'px';
+    }
+  });
+}
+
+/* ── Create label elements ── */
+const labelEls = {};
+const mainView = document.getElementById('mainView');
+constellations.forEach(c => {
+  const el = document.createElement('div');
+  el.className = 'constellation-label' + (c.pending ? ' pending' : '');
+  el.textContent = c.name;
+  mainView.appendChild(el);
+  labelEls[c.id] = el;
+});
+
+/* ── Parallax ── */
+let parallaxX = 0, parallaxY = 0;
+let targetPX = 0, targetPY = 0;
+
+app.addEventListener('mousemove', e => {
+  targetPX = (e.clientX / W - 0.5) * 10;
+  targetPY = (e.clientY / H - 0.5) * 6;
+});
+
+/* ── Click detection ── */
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  for(const c of constellations){
+    if(c.pending && c.fadeIn < 0.9) continue;
+    for(const n of c.nodes){
+      if(n.active && Math.hypot(mx - n.x, my - n.y) < Math.max(25, n.r * 8)){
+        openReading(c.name);
+        return;
+      }
+    }
+  }
+});
+
+/* ── Draw loop ── */
+let time = 0;
+let lastFrame = performance.now();
+let greetingDone = false;
+
+function draw(){
+  const now = performance.now();
+  const dt = Math.min((now - lastFrame) / 1000, 0.05);
+  lastFrame = now;
+  time += dt;
+
+  // Smooth parallax
+  parallaxX += (targetPX - parallaxX) * 0.03;
+  parallaxY += (targetPY - parallaxY) * 0.03;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  const bgGrad = ctx.createRadialGradient(W*0.5, H*0.4, 0, W*0.5, H*0.5, Math.max(W,H)*0.8);
+  bgGrad.addColorStop(0, '#0a0a12');
+  bgGrad.addColorStop(1, '#04040a');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Nebulae
+  nebulae.forEach(n => {
+    const drift = Math.sin(time * n.drift) * 15;
+    const driftY = Math.cos(time * n.drift * 0.7) * 10;
+    const breathe = 1 + Math.sin(time * 0.08 + n.x * 0.005) * 0.2;
+    const [r, g, b] = n.color;
+    const grd = ctx.createRadialGradient(
+      n.x + drift + parallaxX * 0.3, n.y + driftY + parallaxY * 0.3, 0,
+      n.x + drift + parallaxX * 0.3, n.y + driftY + parallaxY * 0.3, Math.max(n.rx, n.ry)
+    );
+    grd.addColorStop(0, `rgba(${r},${g},${b},${n.alpha * breathe})`);
+    grd.addColorStop(0.5, `rgba(${r},${g},${b},${n.alpha * 0.3 * breathe})`);
+    grd.addColorStop(1, 'transparent');
+    ctx.fillStyle = grd;
+    ctx.beginPath();
+    ctx.ellipse(n.x + drift + parallaxX * 0.3, n.y + driftY + parallaxY * 0.3, n.rx, n.ry, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  // Background stars
+  bgStars.forEach(s => {
+    const layerOff = s.layer * 0.5;
+    const px = parallaxX * layerOff;
+    const py = parallaxY * layerOff;
+    const twinkle = Math.sin(time * s.twinkleSpeed + s.twinklePhase);
+    const alpha = s.baseAlpha * Math.min(1, 0.98 + twinkle * 0.55);
+    const x = s.x + px;
+    const y = s.y + py;
+
+    // Color
+    let fill;
+    if(s.warmth > 0.7) fill = `rgba(240,225,185,1)`;
+    else if(s.warmth > 0.4) fill = `rgba(210,218,240,1)`;
+    else fill = `rgba(195,200,220,1)`;
+
+    // Soft halo only for the very biggest stars
+    if(s.r > 1.5){
+      ctx.globalAlpha = alpha * 0.12;
+      ctx.fillStyle = fill;
+      ctx.beginPath();
+      ctx.arc(x, y, s.r * 3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Core
+    ctx.globalAlpha = Math.max(0, alpha);
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.arc(x, y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bright center for biggest stars
+    if(s.r > 1.2){
+      ctx.globalAlpha = Math.min(1, alpha * 0.9);
+      ctx.fillStyle = 'rgba(255,252,245,1)';
+      ctx.beginPath();
+      ctx.arc(x, y, s.r * 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+  ctx.globalAlpha = 1;
+
+  // Background constellations (dim, recognizable patterns)
+  bgConstellations.forEach(c => {
+    const breathe = Math.sin(time * 0.15 + c.phase);
+    const alpha = c.baseAlpha * Math.min(1, 0.98 + breathe * 0.3);
+    // Lines
+    ctx.strokeStyle = `rgba(160,165,185,${alpha * 0.7})`;
+    ctx.lineWidth = 0.5;
+    c.conns.forEach(conn => {
+      const a = c.stars[conn[0]];
+      const b = c.stars[conn[1]];
+      ctx.beginPath();
+      ctx.moveTo(a.x + parallaxX * 0.4, a.y + parallaxY * 0.4);
+      ctx.lineTo(b.x + parallaxX * 0.4, b.y + parallaxY * 0.4);
+      ctx.stroke();
+    });
+    // Stars
+    c.stars.forEach(s => {
+      const sx = s.x + parallaxX * 0.4;
+      const sy = s.y + parallaxY * 0.4;
+      // Glow halo
+      ctx.globalAlpha = alpha * 0.2;
+      ctx.fillStyle = `rgba(180,185,210,1)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 6, 0, Math.PI * 2);
+      ctx.fill();
+      // Core
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = `rgba(190,195,220,1)`;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    });
+  });
+
+  // Update pending constellation fade-in
+  if(greetingDone){
+    constellations.forEach(c => {
+      if(c.pending && c.fadeIn < 1){
+        c.fadeIn = Math.min(1, c.fadeIn + dt * c.fadeSpeed);
+      }
+    });
+  }
+
+  // Interactive constellation connections
+  constellations.forEach(c => {
+    const fade = c.pending ? c.fadeIn : 1;
+    if(fade <= 0) return;
+    c.connections.forEach(conn => {
+      const a = c.nodes[conn.a];
+      const b = c.nodes[conn.b];
+      const ax = a.x + parallaxX * 0.5;
+      const ay = a.y + parallaxY * 0.5;
+      const bx = b.x + parallaxX * 0.5;
+      const by = b.y + parallaxY * 0.5;
+      ctx.strokeStyle = `rgba(${c.color[0]},${c.color[1]},${c.color[2]},${conn.alpha * fade})`;
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(ax, ay);
+      ctx.lineTo(bx, by);
+      ctx.stroke();
+    });
+  });
+
+  // Interactive constellation nodes
+  constellations.forEach(c => {
+    const fade = c.pending ? c.fadeIn : 1;
+    if(fade <= 0) return;
+    c.nodes.forEach(n => {
+      const nx = n.x + parallaxX * 0.5;
+      const ny = n.y + parallaxY * 0.5;
+
+      if(n.active){
+        const twinkle = Math.sin(time * n.twinkleSpeed + n.twinklePhase);
+        const flare = Math.sin(time * n.flareSpeed + n.flarePhase);
+        const brightness = Math.min(1, 0.8 + twinkle * 0.35) * fade;
+        const [cr, cg, cb] = c.color;
+
+        // Outer diffuse glow
+        const g3 = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 14);
+        g3.addColorStop(0, `rgba(${Math.min(255,cr+40)},${Math.min(255,cg+30)},${Math.min(255,cb+20)},${0.035 * brightness})`);
+        g3.addColorStop(1, 'transparent');
+        ctx.fillStyle = g3;
+        ctx.beginPath();
+        ctx.arc(nx, ny, n.r * 14, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Mid glow
+        const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 6);
+        g2.addColorStop(0, `rgba(${cr},${cg},${cb},${0.2 * brightness})`);
+        g2.addColorStop(0.4, `rgba(${cr},${cg},${cb},${0.06 * brightness})`);
+        g2.addColorStop(1, 'transparent');
+        ctx.fillStyle = g2;
+        ctx.beginPath();
+        ctx.arc(nx, ny, n.r * 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Bright core
+        const g1 = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 2.5);
+        g1.addColorStop(0, `rgba(255,250,240,${0.85 * brightness})`);
+        g1.addColorStop(0.3, `rgba(${cr},${cg},${cb},${0.5 * brightness})`);
+        g1.addColorStop(1, 'transparent');
+        ctx.fillStyle = g1;
+        ctx.beginPath();
+        ctx.arc(nx, ny, n.r * 2.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // White-hot center
+        ctx.fillStyle = `rgba(255,252,245,${0.8 * brightness})`;
+        ctx.beginPath();
+        ctx.arc(nx, ny, n.r * 0.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Lens flare spikes
+        const spikeAlpha = 0.06 + flare * 0.04;
+        const spikeLen = n.r * (7 + flare * 4);
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${spikeAlpha})`;
+        ctx.lineWidth = 0.4;
+        // Horizontal + vertical
+        ctx.beginPath(); ctx.moveTo(nx - spikeLen, ny); ctx.lineTo(nx + spikeLen, ny); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(nx, ny - spikeLen); ctx.lineTo(nx, ny + spikeLen); ctx.stroke();
+        // Diagonal
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${spikeAlpha * 0.4})`;
+        ctx.lineWidth = 0.3;
+        const dl = spikeLen * 0.55;
+        ctx.beginPath(); ctx.moveTo(nx - dl, ny - dl); ctx.lineTo(nx + dl, ny + dl); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(nx + dl, ny - dl); ctx.lineTo(nx - dl, ny + dl); ctx.stroke();
+
+      } else {
+        // Inactive: cold grey-blue, dim but visible
+        const twinkle = Math.sin(time * n.twinkleSpeed * 0.4 + n.twinklePhase);
+        const alpha = n.baseAlpha * Math.min(1, 0.65 + twinkle * 0.5) * fade;
+
+        const g = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 4);
+        g.addColorStop(0, `rgba(160,170,210,${alpha * 0.2})`);
+        g.addColorStop(1, 'transparent');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(nx, ny, n.r * 4, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = `rgba(175,180,215,${alpha})`;
+        ctx.beginPath();
+        ctx.arc(nx, ny, n.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  });
+
+  // Update label active states (skip pending labels)
+  constellations.forEach(c => {
+    if(c.pending && c.fadeIn < 0.9) return;
+    const hasActive = c.nodes.some(n => n.active);
+    labelEls[c.id].classList.toggle('active', hasActive);
+  });
+
+  requestAnimationFrame(draw);
+}
+
+resize();
+draw();
+
+/* ════════════════════════════════════
+   UI INTERACTIONS
+   ════════════════════════════════════ */
+
+const screenReading = document.getElementById('screen-reading');
+const screenCompose = document.getElementById('screen-compose');
+const greeting = document.getElementById('greeting');
+
+// Apply "settled" class after greeting animation ends to shrink text for top position
+// Also trigger fade-in for all constellations (each at random speed)
+greeting.addEventListener('animationend', () => {
+  greeting.classList.add('settled');
+  greetingDone = true;
+  // Fade in all constellation labels
+  constellations.forEach(c => {
+    if(c.pending){
+      const label = labelEls[c.id];
+      label.classList.remove('pending');
+      label.classList.add('fading-in');
+      // Match label transition duration to constellation fade speed
+      const dur = (1 / c.fadeSpeed).toFixed(2) + 's';
+      label.style.transition = `color 1.2s ease, text-shadow 1.2s ease, opacity ${dur} ease`;
+      // Trigger reflow, then set opacity
+      requestAnimationFrame(() => {
+        label.style.opacity = '.8';
+      });
+    }
+  });
+});
+
+function openReading(categoryName){
+  document.getElementById('readingCategory').textContent = categoryName;
+  screenReading.classList.add('visible');
+  screenReading.querySelector('.reading-content').classList.add('screen-enter');
+  greeting.classList.add('hidden');
+}
+
+function closeReading(){
+  screenReading.classList.remove('visible');
+  greeting.classList.remove('hidden');
+}
+
+function openCompose(){
+  screenCompose.classList.add('visible');
+  screenCompose.querySelector('.compose-layout').classList.add('screen-enter');
+  greeting.classList.add('hidden');
+}
+
+function closeCompose(){
+  screenCompose.classList.remove('visible');
+  greeting.classList.remove('hidden');
+}
+
+document.getElementById('closeReading').addEventListener('click', closeReading);
+document.getElementById('closeCompose').addEventListener('click', closeCompose);
+document.getElementById('readingBack').addEventListener('click', closeReading);
+document.getElementById('composeBack').addEventListener('click', closeCompose);
+document.getElementById('themeToggle').addEventListener('click', () => {
+  alert('亮色主题尚未制作');
+});
+
+// Top nav
+document.querySelectorAll('[data-action="compose"]').forEach(el => {
+  el.addEventListener('click', openCompose);
+});
+
+// Bottom nav
+document.querySelectorAll('.nav-item[data-action]').forEach(el => {
+  el.addEventListener('click', () => {
+    if(el.dataset.action === 'compose') openCompose();
+  });
+});
+
+// Escape key
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape'){
+    if(screenReading.classList.contains('visible')) closeReading();
+    else if(screenCompose.classList.contains('visible')) closeCompose();
+  }
+});
+
+/* ── Empathy long-press ── */
+const warmGlow = document.getElementById('warmGlow');
+const empathyMsg = document.getElementById('empathyMsg');
+let lpTimer = null, isLP = false;
+
+screenReading.addEventListener('pointerdown', e => {
+  if(e.target.closest('.reading-actions,.mood-light,.mood-ring,.screen-close')) return;
+  isLP = false;
+  lpTimer = setTimeout(() => {
+    isLP = true;
+    warmGlow.classList.add('active');
+    warmGlow.classList.remove('fading');
+    empathyMsg.classList.add('show');
+  }, 500);
+});
+screenReading.addEventListener('pointerup', () => {
+  clearTimeout(lpTimer);
+  if(isLP){
+    warmGlow.classList.remove('active');
+    warmGlow.classList.add('fading');
+    setTimeout(() => { empathyMsg.classList.remove('show'); warmGlow.classList.remove('fading'); }, 2500);
+  }
+});
+screenReading.addEventListener('pointerleave', () => clearTimeout(lpTimer));
+
+document.getElementById('btnEmpathy').addEventListener('click', () => {
+  warmGlow.classList.add('active'); warmGlow.classList.remove('fading');
+  empathyMsg.classList.add('show');
+  setTimeout(() => {
+    warmGlow.classList.remove('active'); warmGlow.classList.add('fading');
+    setTimeout(() => { empathyMsg.classList.remove('show'); warmGlow.classList.remove('fading'); }, 2500);
+  }, 2000);
+});
+
+/* ── Mood light ── */
+const moodLight = document.getElementById('moodLight');
+const moodRing = document.getElementById('moodRing');
+let moodOpen = false;
+moodLight.addEventListener('click', () => {
+  moodOpen = !moodOpen;
+  moodRing.classList.toggle('open', moodOpen);
+});
+document.querySelectorAll('.mood-word').forEach(w => {
+  w.addEventListener('click', () => {
+    const color = w.dataset.color;
+    moodLight.style.background = color;
+    moodLight.style.boxShadow = `0 0 12px ${color}, 0 0 30px ${color.replace(/[\d.]+\)$/,'.3)')}`;
+    moodRing.classList.remove('open'); moodOpen = false;
+  });
+});
+
+/* ── Compose ── */
+const textarea = document.getElementById('composeTextarea');
+const charCount = document.getElementById('charCount');
+const sendBtn = document.getElementById('composeSend');
+textarea.addEventListener('input', () => {
+  charCount.textContent = textarea.value.length;
+  sendBtn.disabled = textarea.value.length === 0;
+});
+
+sendBtn.addEventListener('click', () => {
+  if(!textarea.value.trim()) return;
+  const overlay = document.getElementById('sinkOverlay');
+  const sinkText = document.getElementById('sinkText');
+  const sinkMsg = document.getElementById('sinkMessage');
+  sinkText.textContent = textarea.value;
+  overlay.classList.add('active');
+  setTimeout(() => sinkText.classList.add('sinking'), 300);
+  setTimeout(() => sinkMsg.classList.add('show'), 2500);
+  setTimeout(() => {
+    overlay.classList.remove('active');
+    sinkText.classList.remove('sinking');
+    sinkMsg.classList.remove('show');
+    textarea.value = ''; charCount.textContent = '0'; sendBtn.disabled = true;
+    closeCompose();
+  }, 5500);
+});
+
+// Prevent canvas click from firing when screens are open
+canvas.style.pointerEvents = 'auto';
+function updateCanvasPointer(){
+  const readingOpen = screenReading.classList.contains('visible');
+  const composeOpen = screenCompose.classList.contains('visible');
+  canvas.style.pointerEvents = (readingOpen || composeOpen) ? 'none' : 'auto';
+}
+const observer = new MutationObserver(updateCanvasPointer);
+observer.observe(screenReading, { attributes: true, attributeFilter: ['class'] });
+observer.observe(screenCompose, { attributes: true, attributeFilter: ['class'] });
+
+})();
+</script>
+</body>
+</html>
