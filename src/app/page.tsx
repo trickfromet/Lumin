@@ -28,15 +28,15 @@ const BRAND_PALETTE = [
 ];
 
 const CATEGORY_EN_MAP: Record<string, string> = {
-  心弦: "Heartstrings",
-  求索: "Quest",
-  尘网: "Web of Dust",
-  屋檐: "Eaves",
-  浮生: "Floating Life",
-  幽壑: "Hidden Ravine",
-  拾遗: "Gleanings",
-  碎语: "Fragments",
-  长卷: "Long Scroll",
+  情感: "Feelings",
+  问答: "Q&A",
+  工作: "Work",
+  家庭: "Family",
+  日常: "Daily",
+  社交: "Social",
+  心情: "Mood",
+  随笔: "Notes",
+  吐槽: "Rants",
 };
 
 function tCategory(

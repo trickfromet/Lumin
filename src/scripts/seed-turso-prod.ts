@@ -37,17 +37,17 @@ function distributePosts(posts: PostInput[]): DistributedPost[] {
   const sorted = [...posts].sort((a, b) => a.content.length - b.content.length);
 
   // Shortest 20 go to "碎语"
-  const shortGroup = sorted.slice(0, 20).map(p => ({ ...p, targetCategoryName: "碎语" }));
+  const shortGroup = sorted.slice(0, 20).map(p => ({ ...p, targetCategoryName: "随笔" }));
 
-  // Longest 20 go to "长卷"
-  const longGroup = sorted.slice(sorted.length - 20).map(p => ({ ...p, targetCategoryName: "长卷" }));
+  // Longest 20 go to "吐槽"
+  const longGroup = sorted.slice(sorted.length - 20).map(p => ({ ...p, targetCategoryName: "吐槽" }));
 
   // Remaining
   const remaining = sorted.slice(20, sorted.length - 20);
 
-  // Shuffle remaining and pick 20 for "拾遗"
+  // Shuffle remaining and pick 20 for "心情"
   const shuffled = remaining.sort(() => Math.random() - 0.5);
-  const gleanGroup = shuffled.slice(0, 20).map(p => ({ ...p, targetCategoryName: "拾遗" }));
+  const gleanGroup = shuffled.slice(0, 20).map(p => ({ ...p, targetCategoryName: "心情" }));
 
   // Rest keep their original categoryName
   const restGroup = shuffled.slice(20).map(p => ({ ...p, targetCategoryName: p.categoryName }));
@@ -129,7 +129,7 @@ async function main() {
 
   // Verify final counts by tag name for both languages
   console.log("Verification - Category counts in Turso Production:");
-  const allTags = ["心弦", "求索", "尘网", "屋檐", "浮生", "幽壑", "拾遗", "碎语", "长卷"];
+  const allTags = ["情感", "问答", "工作", "家庭", "日常", "社交", "心情", "随笔", "吐槽"];
   for (const tag of allTags) {
     const countZh = await prisma.post.count({
       where: { userId: null, language: "zh", tags: { some: { tag } } }

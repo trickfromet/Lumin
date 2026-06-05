@@ -1,37 +1,37 @@
 [
   {
-    "name": "心弦",
-    "description": "风月无边，心事几重，关于爱与羁绊",
+    "name": "情感",
+    "description": "关于爱与羁绊、人际关系中的点滴",
     "icon": "💕",
     "sortOrder": 1
   },
   {
-    "name": "求索",
-    "description": "青灯黄卷，行路漫漫的困惑与期冀",
-    "icon": "📚",
+    "name": "问答",
+    "description": "生活中的困惑与求索，期待解答",
+    "icon": "❓",
     "sortOrder": 2
   },
   {
-    "name": "尘网",
-    "description": "困于营役与奔波中的叹息",
+    "name": "工作",
+    "description": "职场、学业、奔波与奋斗",
     "icon": "💼",
     "sortOrder": 3
   },
   {
-    "name": "屋檐",
+    "name": "家庭",
     "description": "关于血脉、至亲与归处的絮语",
     "icon": "🏠",
     "sortOrder": 4
   },
   {
-    "name": "浮生",
+    "name": "日常",
     "description": "人间烟火里的庸常与微光",
     "icon": "🌿",
     "sortOrder": 5
   },
   {
-    "name": "幽壑",
-    "description": "无人知晓的深渊、孤独与宣泄",
+    "name": "社交",
+    "description": "人际交往中的孤独、喜悦与思考",
     "icon": "🌧️",
     "sortOrder": 6
   }
