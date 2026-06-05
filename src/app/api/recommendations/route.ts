@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { getRecommendedPosts, getWarmPosts } from "@/lib/recommendation";

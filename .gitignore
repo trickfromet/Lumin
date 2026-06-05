@@ -17,3 +17,8 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+
+# Next.js / Vercel / Cloudflare 构建缓存和产物
+.next/
+.vercel/
+.next-on-pages/

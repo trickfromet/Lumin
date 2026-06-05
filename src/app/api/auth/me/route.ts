@@ -1,3 +1,4 @@
+export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
 import { success } from "@/lib/api-response";
