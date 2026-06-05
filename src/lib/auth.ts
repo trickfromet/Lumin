@@ -1,7 +1,6 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
-import crypto from "crypto";
 import { prisma } from "./prisma";
 
 const JWT_SECRET = new TextEncoder().encode(
@@ -111,13 +110,19 @@ export function clearTokenCookie() {
   };
 }
 
-export function hashInviteCode(code: string): string {
-  return crypto.createHash("sha256").update(code.toUpperCase().trim()).digest("hex");
+export async function hashInviteCode(code: string): Promise<string> {
+  const msgUint8 = new TextEncoder().encode(code.toUpperCase().trim());
+  const hashBuffer = await globalThis.crypto.subtle.digest("SHA-256", msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-export function generateInviteCode(): { raw: string; hash: string } {
-  const raw = crypto.randomBytes(4).toString("hex").toUpperCase();
-  const hash = hashInviteCode(raw);
+export async function generateInviteCode(): Promise<{ raw: string; hash: string }> {
+  const raw = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(4)))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("")
+    .toUpperCase();
+  const hash = await hashInviteCode(raw);
   return { raw, hash };
 }
 

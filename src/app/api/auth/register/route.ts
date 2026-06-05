@@ -1,6 +1,5 @@
 export const runtime = "edge";
 import { NextRequest } from "next/server";
-import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
 import { generateNickname } from "@/lib/nickname";
 import {
@@ -91,8 +90,11 @@ export async function POST(request: NextRequest) {
   // ── 自动分发邀请码：ID ≤ 3000 的用户获得一个 ──
   let autoInviteCode: string | undefined;
   if (user.id <= 3000) {
-    const raw = crypto.randomBytes(4).toString("hex").toUpperCase();
-    const newHash = hashInviteCode(raw);
+    const raw = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(4)))
+      .map(b => b.toString(16).padStart(2, "0"))
+      .join("")
+      .toUpperCase();
+    const newHash = await hashInviteCode(raw);
     await prisma.inviteCode.create({
       data: { codeHash: newHash, maxUses: 4 },
     });

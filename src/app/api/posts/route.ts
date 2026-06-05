@@ -78,10 +78,11 @@ export async function GET(request: NextRequest) {
     userMetooSet = new Set(metooPostIds.map((m) => m.postId));
   }
 
-  const enrichedPosts = posts.map((post) => {
-    const decryptedContent = post.isEncrypted
-      ? decryptContent(post.encryptedContent!, post.iv!, post.authTag!)
-      : post.content;
+  const enrichedPosts = await Promise.all(
+    posts.map(async (post) => {
+      const decryptedContent = post.isEncrypted
+        ? await decryptContent(post.encryptedContent!, post.iv!, post.authTag!)
+        : post.content;
 
     return {
       id: post.id,
@@ -175,7 +176,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Encrypt content
-    const { encrypted, iv, authTag } = encryptContent(content.trim());
+    const { encrypted, iv, authTag } = await encryptContent(content.trim());
 
     // Auto-classify if no category provided
     let finalCategoryId = categoryId ? Number(categoryId) : null;

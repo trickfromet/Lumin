@@ -55,7 +55,7 @@ export async function GET(
   }
 
   const decryptedContent = post.isEncrypted
-    ? decryptContent(post.encryptedContent!, post.iv!, post.authTag!)
+    ? await decryptContent(post.encryptedContent!, post.iv!, post.authTag!)
     : post.content;
 
   const ip = getIpFromRequest(request);

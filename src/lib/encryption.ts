@@ -1,50 +1,103 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
-
-const ALGORITHM = "aes-256-gcm";
-const IV_LENGTH = 12;
-
-function getKey(): Buffer {
-  const key = process.env.POST_ENCRYPTION_KEY;
-  if (!key || key.length !== 64) {
-    throw new Error("POST_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)");
+// Helper to convert hex string to Uint8Array
+function hexToUint8Array(hex: string): Uint8Array {
+  const arr = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < arr.length; i++) {
+    arr[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   }
-  return Buffer.from(key, "hex");
+  return arr;
 }
 
-export function encryptContent(plaintext: string): {
+// Helper to convert base64 to Uint8Array
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+// Helper to convert Uint8Array to base64
+function uint8ArrayToBase64(arr: Uint8Array): string {
+  let binary = "";
+  const len = arr.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(arr[i]);
+  }
+  return btoa(binary);
+}
+
+async function getCryptoKey(): Promise<CryptoKey> {
+  const keyHex = process.env.POST_ENCRYPTION_KEY;
+  if (!keyHex || keyHex.length !== 64) {
+    throw new Error("POST_ENCRYPTION_KEY must be a 64-character hex string (32 bytes)");
+  }
+  const keyData = hexToUint8Array(keyHex);
+  return globalThis.crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+export async function encryptContent(plaintext: string): Promise<{
   encrypted: string;
   iv: string;
   authTag: string;
-} {
-  const key = getKey();
-  const iv = randomBytes(IV_LENGTH);
-  const cipher = createCipheriv(ALGORITHM, key, iv);
+}> {
+  const key = await getCryptoKey();
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(12));
+  const encodedPlaintext = new TextEncoder().encode(plaintext);
 
-  let encrypted = cipher.update(plaintext, "utf8", "base64");
-  encrypted += cipher.final("base64");
-  const authTag = cipher.getAuthTag();
+  const encryptedBuffer = await globalThis.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: iv,
+      tagLength: 128, // 16 bytes auth tag
+    },
+    key,
+    encodedPlaintext
+  );
+
+  const encryptedBytes = new Uint8Array(encryptedBuffer);
+  // Web Crypto AES-GCM appends the 16-byte auth tag at the end of the encrypted buffer.
+  const ciphertextBytes = encryptedBytes.slice(0, encryptedBytes.length - 16);
+  const authTagBytes = encryptedBytes.slice(encryptedBytes.length - 16);
 
   return {
-    encrypted,
-    iv: iv.toString("base64"),
-    authTag: authTag.toString("base64"),
+    encrypted: uint8ArrayToBase64(ciphertextBytes),
+    iv: uint8ArrayToBase64(iv),
+    authTag: uint8ArrayToBase64(authTagBytes),
   };
 }
 
-export function decryptContent(
+export async function decryptContent(
   encrypted: string,
   iv: string,
   authTag: string
-): string {
-  const key = getKey();
-  const decipher = createDecipheriv(
-    ALGORITHM,
-    key,
-    Buffer.from(iv, "base64")
-  );
-  decipher.setAuthTag(Buffer.from(authTag, "base64"));
+): Promise<string> {
+  const key = await getCryptoKey();
+  const ciphertextBytes = base64ToUint8Array(encrypted);
+  const ivBytes = base64ToUint8Array(iv);
+  const authTagBytes = base64ToUint8Array(authTag);
 
-  let decrypted = decipher.update(encrypted, "base64", "utf8");
-  decrypted += decipher.final("utf8");
-  return decrypted;
+  // Reconstruct the combined buffer (ciphertext + authTag) for Web Crypto
+  const combinedBytes = new Uint8Array(ciphertextBytes.length + authTagBytes.length);
+  combinedBytes.set(ciphertextBytes);
+  combinedBytes.set(authTagBytes, ciphertextBytes.length);
+
+  const decryptedBuffer = await globalThis.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: ivBytes,
+      tagLength: 128,
+    },
+    key,
+    combinedBytes
+  );
+
+  return new TextDecoder().decode(decryptedBuffer);
 }

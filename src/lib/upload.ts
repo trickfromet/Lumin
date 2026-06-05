@@ -1,6 +1,3 @@
-import { writeFile, mkdir } from "fs/promises";
-import { join } from "path";
-import { randomUUID } from "crypto";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -42,7 +39,7 @@ export async function saveUpload(
   }
 
   const ext = file.name.split(".").pop() || "jpg";
-  const filename = `${Date.now()}-${randomUUID()}.${ext}`;
+  const filename = `${Date.now()}-${globalThis.crypto.randomUUID()}.${ext}`;
   const key = `${directory}/${filename}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
@@ -67,10 +64,15 @@ export async function saveUpload(
   }
 
   // Local filesystem fallback (dev only)
-  const uploadDir = join(process.cwd(), "public", directory);
-  const filepath = join(uploadDir, filename);
-  await mkdir(uploadDir, { recursive: true });
-  await writeFile(filepath, buffer);
+  if (process.env.NODE_ENV !== "production") {
+    const fs = require("fs");
+    const path = require("path");
+    const uploadDir = path.join(process.cwd(), "public", directory);
+    const filepath = path.join(uploadDir, filename);
+    fs.mkdirSync(uploadDir, { recursive: true });
+    fs.writeFileSync(filepath, buffer);
+    return { url: `/${directory}/${filename}` };
+  }
 
-  return { url: `/${directory}/${filename}` };
+  throw new Error("Missing R2 configuration in production");
 }
