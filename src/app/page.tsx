@@ -108,6 +108,8 @@ export default function Home() {
 
   // 个人主页状态
   const [profilePosts, setProfilePosts] = useState<Post[]>([]);
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [nicknameInput, setNicknameInput] = useState("");
 
   // 登录表单
   const [authEmail, setAuthEmail] = useState("");
@@ -1810,6 +1812,28 @@ export default function Home() {
     [closeAllScreens, t, isEnglishMode],
   );
 
+  // ── 修改昵称 ──
+  const handleSaveNickname = useCallback(async () => {
+    const trimmed = nicknameInput.trim();
+    if (!trimmed || trimmed.length < 2 || trimmed.length > 20) {
+      showToast(t("昵称需要 2-20 个字符", "Nickname must be 2-20 characters"), "warn");
+      return;
+    }
+    if (trimmed === currentUser?.nickname) {
+      setEditingNickname(false);
+      return;
+    }
+    try {
+      await users.updateMe({ nickname: trimmed });
+      setCurrentUser((prev) => (prev ? { ...prev, nickname: trimmed } : prev));
+      setEditingNickname(false);
+      showToast(t("昵称已更新", "Nickname updated"), "info");
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : t("更新失败", "Update failed");
+      showToast(msg, "error");
+    }
+  }, [nicknameInput, currentUser, showToast, t]);
+
   // ── 退出登录 ──
   const handleLogout = useCallback(async () => {
     try {
@@ -2821,10 +2845,76 @@ export default function Home() {
                 )}
               </div>
               <div className="profile-meta">
-                <h2 className="profile-name">
-                  {currentUser?.nickname ||
-                    t(t("匿名用户", "Anonymous"), "Anonymous")}
-                </h2>
+                {editingNickname ? (
+                  <div className="profile-name" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <input
+                      type="text"
+                      className="profile-nickname-input"
+                      value={nicknameInput}
+                      onChange={(e) => setNicknameInput(e.target.value)}
+                      maxLength={20}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveNickname();
+                        if (e.key === "Escape") setEditingNickname(false);
+                      }}
+                    />
+                    <button
+                      onClick={handleSaveNickname}
+                      style={{
+                        background: "rgba(232,145,90,0.2)",
+                        border: "1px solid var(--amber-dim)",
+                        borderRadius: 6,
+                        padding: "6px 14px",
+                        color: "var(--amber)",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {t("保存", "Save")}
+                    </button>
+                    <button
+                      onClick={() => setEditingNickname(false)}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid var(--border-line)",
+                        borderRadius: 6,
+                        padding: "6px 10px",
+                        color: "var(--warm-faint)",
+                        fontSize: 13,
+                        cursor: "pointer",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {t("取消", "Cancel")}
+                    </button>
+                  </div>
+                ) : (
+                  <h2 className="profile-name" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    {currentUser?.nickname ||
+                      t(t("匿名用户", "Anonymous"), "Anonymous")}
+                    <button
+                      onClick={() => {
+                        setNicknameInput(currentUser?.nickname || "");
+                        setEditingNickname(true);
+                      }}
+                      style={{
+                        background: "transparent",
+                        border: "1px solid var(--border-line)",
+                        borderRadius: 6,
+                        padding: "3px 10px",
+                        color: "var(--warm-faint)",
+                        fontSize: 12,
+                        cursor: "pointer",
+                        fontFamily: "var(--font-body)",
+                        opacity: 0.6,
+                      }}
+                    >
+                      {t("编辑", "Edit")}
+                    </button>
+                  </h2>
+                )}
                 <div className="profile-tags">
                   <span className="profile-tag">
                     <i

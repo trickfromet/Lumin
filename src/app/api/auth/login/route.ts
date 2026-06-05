@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, signToken, setTokenCookie } from "@/lib/auth";

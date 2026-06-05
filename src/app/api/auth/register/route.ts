@@ -1,4 +1,3 @@
-export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateNickname } from "@/lib/nickname";
@@ -10,7 +9,7 @@ import {
   hashInviteCode,
 } from "@/lib/auth";
 import { success, error } from "@/lib/api-response";
-import { checkRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { checkRateLimit, clearRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   const ip =
@@ -100,6 +99,9 @@ export async function POST(request: NextRequest) {
     });
     autoInviteCode = raw;
   }
+
+  // 注册成功后释放限频 key
+  clearRateLimit(`register:${ip}`);
 
   const token = await signToken(user.id);
 

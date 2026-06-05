@@ -2034,6 +2034,21 @@ html.light-theme .profile-avatar {
     margin-bottom: 6px;
     text-align: inherit;
 }
+.profile-nickname-input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border-line);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: clamp(18px, 3.5vw, 24px);
+    color: var(--warm-white);
+    font-family: var(--font-serif);
+    outline: none;
+    width: min(200px, 40vw);
+}
+.profile-nickname-input:focus {
+    border-color: var(--amber-dim);
+    box-shadow: 0 0 8px var(--amber-glow);
+}
 .profile-id {
     font-family: var(--font-body);
     font-size: 14px;

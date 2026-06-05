@@ -26,10 +26,15 @@ export function checkRateLimit(
   return { allowed: true, remaining: maxRequests - entry.count };
 }
 
+// 导出 clearRateLimit，供注册成功时释放 key
+export function clearRateLimit(key: string): void {
+  store.delete(key);
+}
+
 export const RATE_LIMITS = {
   post: { maxRequests: 5, windowMs: 60 * 1000 },
   comment: { maxRequests: 10, windowMs: 60 * 1000 },
-  register: { maxRequests: 3, windowMs: 60 * 60 * 1000 },
+  register: { maxRequests: 10, windowMs: 60 * 60 * 1000 },
   login: { maxRequests: 5, windowMs: 60 * 1000 },
   report: { maxRequests: 3, windowMs: 60 * 60 * 1000 },
 } as const;
