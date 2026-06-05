@@ -1,4 +1,4 @@
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "@prisma/client";
 import { PrismaLibSql } from "@prisma/adapter-libsql";
 import zhPosts from "../data/warm-posts.json";
 import enPosts from "../data/warm-posts-en.json";

@@ -20,7 +20,7 @@ npx prisma studio    # Open Prisma Studio (DB browser)
 ## Architecture
 
 - **App Router** (`src/app/`): All pages and layouts use Next.js App Router. `layout.tsx` is the root layout, `page.tsx` is the home page.
-- **Prisma + SQLite**: Schema at `prisma/schema.prisma`. The Prisma client is generated to `src/generated/prisma/` (gitignored). Use `src/lib/prisma.ts` to import the client singleton — it uses the `@prisma/adapter-better-sqlite3` adapter and caches the instance in `globalThis` to avoid creating multiple clients in dev.
+- **Prisma + SQLite/Turso**: Schema at `prisma/schema.prisma`. The Prisma client is generated to the default `node_modules` path (which resolves to `@prisma/client/edge` for Edge runtime environments). Use `src/lib/prisma.ts` to import the client singleton — it uses the `@prisma/adapter-libsql` adapter to connect to Turso (in production/local) and caches the instance in `globalThis` to avoid creating multiple clients in dev.
 - **Path alias**: `@/*` maps to `./src/*` (configured in `tsconfig.json`).
 
 ## Windows Path Casing

@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
       commentCount: post._count.comments,
       userHasMetoed: userMetooSet.has(post.id),
     };
-  });
+  }));
 
   return success({
     posts: enrichedPosts,

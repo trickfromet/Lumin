@@ -17,7 +17,7 @@ function hashCode(code: string): string {
 async function main() {
   // Need to resolve @/ alias manually when running outside Next.js
   // We import prisma directly and set up the adapter inline
-  const { PrismaClient } = await import("../generated/prisma/client");
+  const { PrismaClient } = await import("@prisma/client");
   const { PrismaLibSql } = await import("@prisma/adapter-libsql");
   const adapter = new PrismaLibSql({
     url: process.env.TURSO_DATABASE_URL ?? "file:./prisma/dev.db",

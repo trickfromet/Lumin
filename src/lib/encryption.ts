@@ -36,7 +36,8 @@ async function getCryptoKey(): Promise<CryptoKey> {
   const keyData = hexToUint8Array(keyHex);
   return globalThis.crypto.subtle.importKey(
     "raw",
-    keyData,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    keyData as any,
     { name: "AES-GCM" },
     false,
     ["encrypt", "decrypt"]
@@ -92,11 +93,13 @@ export async function decryptContent(
   const decryptedBuffer = await globalThis.crypto.subtle.decrypt(
     {
       name: "AES-GCM",
-      iv: ivBytes,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      iv: ivBytes as any,
       tagLength: 128,
     },
     key,
-    combinedBytes
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    combinedBytes as any
   );
 
   return new TextDecoder().decode(decryptedBuffer);

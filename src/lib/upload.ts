@@ -65,7 +65,9 @@ export async function saveUpload(
 
   // Local filesystem fallback (dev only)
   if (process.env.NODE_ENV !== "production") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const fs = require("fs");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const path = require("path");
     const uploadDir = path.join(process.cwd(), "public", directory);
     const filepath = path.join(uploadDir, filename);
