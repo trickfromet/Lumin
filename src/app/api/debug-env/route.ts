@@ -1,8 +1,7 @@
 export const runtime = "edge";
 
-import { NextRequest } from "next/server";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const url = process.env.TURSO_DATABASE_URL;
   const token = process.env.TURSO_AUTH_TOKEN;
   const jwt = process.env.JWT_SECRET;
