@@ -94,6 +94,8 @@ export const posts = {
   },
   get: (id: number) => request<{ post: Post }>(`/api/posts/${id}`),
   create: (data: {
+    allowComments?: boolean;
+    allowStrangerComments?: boolean;
     content: string;
     categoryId?: number;
     tags?: string[];
@@ -221,6 +223,8 @@ export const capsuleApi = {
     );
   },
   create: (data: {
+    allowComments?: boolean;
+    allowStrangerComments?: boolean;
     content: string;
     delaySeconds: number;
     imageUrl?: string;

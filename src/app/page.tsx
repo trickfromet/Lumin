@@ -138,6 +138,8 @@ export default function Home() {
 
   // 撰写状态
   const [composeText, setComposeText] = useState("");
+  const [allowComments, setAllowComments] = useState(true);
+  const [allowStrangerComments, setAllowStrangerComments] = useState(true);
   const [sinkActive, setSinkActive] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const emojiTargetRef = useRef<"compose" | "">("");
@@ -561,10 +563,7 @@ export default function Home() {
     });
   }
 
-  // 加载音频序列（MP3 分段播放用）
-  useEffect(() => {
-    audio.loadSequence('/audio/water_lofi.mp3');
-  }, []);
+  
 
   // ── 初始化 ──
   useEffect(() => {
@@ -872,7 +871,7 @@ export default function Home() {
       clearTimeout(t3);
       clearTimeout(t4);
     };
-  }, []);
+  }, [startIdleTimer]);
 
   // ── 主绘制循环 ──
   useEffect(() => {
@@ -1338,12 +1337,7 @@ export default function Home() {
                 st.greetingDone &&
                 !st.anyScreenOpen
               ) {
-                if (audio.seqLoaded) {
-                  // 有 MP3 序列 → 用下一段替代原有 hover 音效
-                  audio.playNextSegment();
-                } else {
-                  audio.playHover();
-                }
+                audio.playHover(c.id);
               }
               label.classList.add("visible");
             } else {
@@ -1516,7 +1510,7 @@ export default function Home() {
           if (Math.hypot(mx - nx, my - ny) < Math.max(30, hitR)) {
             // 触发过渡
             st.isTransitioning = true;
-            audio.playClick();
+            audio.playClick(c.id);
             st.transitionTarget = { x: clCenterX, y: clCenterY };
 
             // 水波纹过渡：创建多层涟漪环
@@ -1796,11 +1790,13 @@ export default function Home() {
     setTimeout(() => {
       setSinkActive(false);
       setComposeText("");
+      setAllowComments(true);
+      setAllowStrangerComments(true);
       closeAllScreens();
     }, 2600);
 
     // 后台异步提交
-    postsApi.create({ content: text, tags })
+    postsApi.create({ content: text, tags, allowComments, allowStrangerComments })
       .then((res) => {
         if (res.guestHint) {
           showToast(res.guestHint, "warn");
@@ -1819,7 +1815,7 @@ export default function Home() {
         const isViolation = msg.includes("违规") || msg.includes("封禁");
         showToast(msg, isViolation ? "error" : "info");
       });
-  }, [composeText, closeAllScreens, showToast, t]);
+  }, [composeText, closeAllScreens, showToast, t, allowComments, allowStrangerComments]);
 
   // ── 共感（我也是）──
   const handleEmpathy = useCallback(() => {
@@ -2987,6 +2983,26 @@ export default function Home() {
                 )}
               </div>
             </div>
+                          <div className="compose-privacy-controls" style={{ marginTop: 20, display: "flex", gap: 20 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--warm-faint)", fontSize: 13 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={allowComments} 
+                    onChange={(e) => setAllowComments(e.target.checked)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  {t("允许评论", "Allow comments")}
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--warm-faint)", fontSize: 13 }}>
+                  <input 
+                    type="checkbox" 
+                    checked={allowStrangerComments} 
+                    onChange={(e) => setAllowStrangerComments(e.target.checked)}
+                    style={{ cursor: "pointer" }}
+                  />
+                  {t("允许陌生人回复", "Allow strangers to reply")}
+                </label>
+              </div>
             <div className="compose-footer">
               <div className="compose-char">
                 <span>{composeText.length}</span> / 800
@@ -3205,6 +3221,7 @@ export default function Home() {
                 style={{ position: "relative", cursor: currentUser ? "pointer" : "default" }}
               >
                 {currentUser?.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img src={currentUser.avatarUrl} alt="avatar" />
                 ) : (
                   <svg
