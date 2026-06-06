@@ -125,6 +125,14 @@ export async function POST(
     return error("帖子不存在", 404);
   }
 
+  if (!post.allowComments) {
+    return error("该帖子已关闭评论功能", 403);
+  }
+
+  if (!post.allowStrangerComments && !user) {
+    return error("该帖子仅允许注册用户评论", 403);
+  }
+
   const body = await request.json();
   const { content, parentId } = body;
 

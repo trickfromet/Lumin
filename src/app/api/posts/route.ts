@@ -106,6 +106,8 @@ export async function GET(request: NextRequest) {
       metooTier: getMeTooTier(post._count.metoos),
       commentCount: post._count.comments,
       userHasMetoed: userMetooSet.has(post.id),
+      allowComments: post.allowComments,
+      allowStrangerComments: post.allowStrangerComments,
     };
   }));
 
@@ -162,7 +164,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { content, imageUrl, tags, categoryId } = body;
+    const { content, imageUrl, tags, categoryId, allowComments, allowStrangerComments } = body;
+    const finalAllowComments = typeof allowComments === "boolean" ? allowComments : true;
+    const finalAllowStrangerComments = typeof allowStrangerComments === "boolean" ? allowStrangerComments : true;
 
     if (
       !content ||
@@ -230,6 +234,8 @@ export async function POST(request: NextRequest) {
         imageUrl: imageUrl || null,
         language: detectLanguage(content.trim()),
         categoryId: finalCategoryId,
+        allowComments: finalAllowComments,
+        allowStrangerComments: finalAllowStrangerComments,
         tags: {
           create: finalTags
             .filter((t) => typeof t === "string" && t.length > 0)

@@ -66,6 +66,8 @@ model Post {
   isHidden         Boolean   @default(false)
   language         String    @default("zh")
   campaign         String?                             // 冷启动标记: "initial_launch" 等，用于追踪宣传效果
+  allowComments    Boolean   @default(true)
+  allowStrangerComments Boolean @default(true)
   createdAt        DateTime  @default(now())
 
   likes      Like[]

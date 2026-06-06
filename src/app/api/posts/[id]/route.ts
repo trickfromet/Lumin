@@ -89,6 +89,8 @@ export async function GET(
       metooTier: getMeTooTier(post._count.metoos),
       commentCount: post._count.comments,
       userHasMetoed,
+      allowComments: post.allowComments,
+      allowStrangerComments: post.allowStrangerComments,
     },
   });
 }

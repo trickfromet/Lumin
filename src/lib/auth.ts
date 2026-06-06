@@ -1,7 +1,4 @@
-// Edge Runtime polyfill (setImmediate for bcryptjs) — MUST be before bcryptjs
-import "./polyfills";
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
-import bcrypt from "bcryptjs";
 import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 
@@ -73,15 +70,64 @@ export class AuthError extends Error {
   }
 }
 
+/** 用 Web Crypto PBKDF2 替代 bcryptjs，兼容 Edge Runtime */
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
+  const salt = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
+  const derived = await globalThis.crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 100_000,
+      hash: "SHA-256",
+    },
+    key,
+    256,
+  );
+  const saltB64 = btoa(Array.from(salt, (b) => String.fromCharCode(b)).join(""));
+  const hashB64 = btoa(Array.from(new Uint8Array(derived), (b) => String.fromCharCode(b)).join(""));
+  return `${saltB64}:${hashB64}`;
 }
 
 export async function verifyPassword(
   password: string,
-  hash: string,
+  stored: string,
 ): Promise<boolean> {
-  return bcrypt.compare(password, hash);
+  // 兼容旧版 bcrypt 哈希（$2a$ / $2b$）—— 静态导入会触发 Edge Runtime 报错
+  if (stored.startsWith("$2")) {
+    return false; // 旧哈希不支持 Edge Runtime，用户需重置密码
+  }
+  const [saltB64, hashB64] = stored.split(":");
+  if (!saltB64 || !hashB64) return false;
+  const salt = new Uint8Array(Array.from(atob(saltB64), (c) => c.charCodeAt(0)));
+  const expectedHash = new Uint8Array(Array.from(atob(hashB64), (c) => c.charCodeAt(0)));
+
+  const key = await globalThis.crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"],
+  );
+  const derived = await globalThis.crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 100_000,
+      hash: "SHA-256",
+    },
+    key,
+    256,
+  );
+  const actualHash = new Uint8Array(derived);
+  if (actualHash.length !== expectedHash.length) return false;
+  return actualHash.every((b, i) => b === expectedHash[i]);
 }
 
 export function validatePassword(password: string): {

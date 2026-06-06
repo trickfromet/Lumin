@@ -18,6 +18,9 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Windows 保留设备名
+nul
+
 # Next.js / Vercel / Cloudflare 构建缓存和产物
 .next/
 .vercel/

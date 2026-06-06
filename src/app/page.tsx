@@ -10,9 +10,11 @@ import {
   postInteractions,
   users,
   feedbackApi,
+  notifications as notificationsApi,
   type TreeHole,
   type Post,
   type User,
+  type Notification,
 } from "@/lib/api";
 import { audio } from "@/lib/audio";
 
@@ -25,6 +27,23 @@ const BRAND_PALETTE = [
   [210, 180, 200],
   [210, 200, 150],
   [170, 210, 210],
+];
+
+const EMOJI_LIST = [
+  // 表情
+  "😊","😂","🥰","😍","😢","😡","😱","🤔","😴","🥳",
+  // 手势
+  "👍","👎","👏","🙏","💪","🤝","✌️","🤞",
+  // 自然
+  "🌊","🔥","⭐","🌙","☀️","🌈","🌧️","❄️","🌿","🌸",
+  // 动物
+  "🐱","🐶","🐦","🦋","🐟","🦊","🐰","🐻",
+  // 物品
+  "💡","🔑","🎵","📖","✏️","🎁","🕯️","🫧",
+  // 符号
+  "❤️","💔","💭","✨","💫","🫶","🤍","🖤",
+  // 食物
+  "🍵","☕","🍰","🍞","🍃","🍂",
 ];
 
 const CATEGORY_EN_MAP: Record<string, string> = {
@@ -62,6 +81,21 @@ function getAutoTheme(): number {
   if (hour >= 20 || hour < 6) return 0;  // 夜晚 → 星空
   return 1;                               // 白天 → 水面
 }
+
+const PRESET_THEME_COLORS = [
+  "#e8915a", // 琥珀暖橙 (默认)
+  "#b5757a", // 水面柔红
+  "#f28b3d", // 篝火炽橙
+  "#8ecae6", // 海风蓝
+  "#a8dadc", // 薄荷青
+  "#9b5de5", // 薰衣草紫
+  "#f15bb5", // 晚霞粉
+  "#00bbf9", // 深湖蓝
+  "#00f5d4", // 荧光青
+  "#fee440", // 暖阳黄
+  "#ffffff", // 纯白
+  "#98c1d9", // 天空蓝
+];
 
 const ENABLE_INVITE_CODE = false;
 
@@ -105,6 +139,13 @@ export default function Home() {
   // 撰写状态
   const [composeText, setComposeText] = useState("");
   const [sinkActive, setSinkActive] = useState(false);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const emojiTargetRef = useRef<"compose" | "">("");
+
+  // 通知状态
+  const [notifPanelOpen, setNotifPanelOpen] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifUnread, setNotifUnread] = useState(0);
 
   // 个人主页状态
   const [profilePosts, setProfilePosts] = useState<Post[]>([]);
@@ -134,6 +175,10 @@ export default function Home() {
   const [feedbackRating, setFeedbackRating] = useState<"good" | "bad" | "">("");
   const [feedbackText, setFeedbackText] = useState("");
   const [feedbackSent, setFeedbackSent] = useState(false);
+
+  // 主题颜色自定义
+  const [customColor, setCustomColor] = useState<string>("");
+  const [showColorPicker, setShowColorPicker] = useState(false);
 
   // 空闲 10s 提示：从未进入过任何树洞时才弹
   const [showIdlePrompt, setShowIdlePrompt] = useState(false);
@@ -288,6 +333,11 @@ export default function Home() {
     lastFrame: 0,
     greetingDone: false,
     anyScreenOpen: false,
+    circleTracking: false,
+    circleAngle: 0,
+    circleCumulative: 0,
+    circleStartRad: 0,
+    circleLastRad: 0,
     clusters: [] as ReturnType<typeof buildClusters>,
     shuffleKey: 0,
     _createLabels: null as ((clusters: ReturnType<typeof buildClusters>) => void) | null,
@@ -511,6 +561,11 @@ export default function Home() {
     });
   }
 
+  // 加载音频序列（MP3 分段播放用）
+  useEffect(() => {
+    audio.loadSequence('/audio/water_lofi.mp3');
+  }, []);
+
   // ── 初始化 ──
   useEffect(() => {
     let initialEnglish = true;
@@ -676,38 +731,120 @@ export default function Home() {
   }, [treeholesData]);
 
 
-  // ── 鼠标 / 触摸跟踪 ──
+  // ── 鼠标 / 触摸跟踪 + 画圆手势检测 ──
   useEffect(() => {
     const st = stateRef.current;
+
     const updateCursor = (x: number, y: number) => {
       st.cursorX = x;
       st.cursorY = y;
       st.targetPX = (x / st.W - 0.5) * 10;
       st.targetPY = (y / st.H - 0.5) * 6;
     };
+
+    /** 计算相对视口中心的角度（弧度）和半径 */
+    const circleCenter = () => ({
+      cx: window.innerWidth / 2,
+      cy: window.innerHeight / 2,
+    });
+    const angleFromCenter = (x: number, y: number) => {
+      const { cx, cy } = circleCenter();
+      return Math.atan2(y - cy, x - cx);
+    };
+    const distFromCenter = (x: number, y: number) => {
+      const { cx, cy } = circleCenter();
+      return Math.hypot(x - cx, y - cy);
+    };
+
+    const handleMouseDown = (e: MouseEvent) => {
+      if (st.anyScreenOpen) return;
+      // 距离中心太近不视为画圆（< 80px 可能是点按）
+      if (distFromCenter(e.clientX, e.clientY) < 80) return;
+      st.circleTracking = true;
+      st.circleAngle = angleFromCenter(e.clientX, e.clientY);
+      st.circleCumulative = 0;
+      st.circleStartRad = st.circleAngle;
+      st.circleLastRad = st.circleAngle;
+    };
+
+    const handleMouseUp = () => {
+      if (st.circleTracking && st.circleCumulative > 300) {
+        // 画完完整一圈 → 播放完整 MP3
+        if (audio.seqLoaded) {
+          audio.playFullSequence();
+        }
+      }
+      st.circleTracking = false;
+      st.circleCumulative = 0;
+    };
+
     const handleMouse = (e: MouseEvent) => {
       updateCursor(e.clientX, e.clientY);
-    };
-    const handleTouch = (e: TouchEvent) => {
-      if (e.touches.length > 0) {
-        updateCursor(e.touches[0].clientX, e.touches[0].clientY);
+      if (st.circleTracking && !st.anyScreenOpen) {
+        const rad = angleFromCenter(e.clientX, e.clientY);
+        let delta = rad - st.circleLastRad;
+        // 处理弧度跨越 ±π 边界
+        if (delta > Math.PI) delta -= Math.PI * 2;
+        if (delta < -Math.PI) delta += Math.PI * 2;
+        st.circleCumulative += Math.abs(delta) * (180 / Math.PI);
+        st.circleLastRad = rad;
       }
     };
+
+    const handleTouch = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        const touch = e.touches[0];
+        updateCursor(touch.clientX, touch.clientY);
+        if (st.circleTracking && !st.anyScreenOpen) {
+          const rad = angleFromCenter(touch.clientX, touch.clientY);
+          let delta = rad - st.circleLastRad;
+          if (delta > Math.PI) delta -= Math.PI * 2;
+          if (delta < -Math.PI) delta += Math.PI * 2;
+          st.circleCumulative += Math.abs(delta) * (180 / Math.PI);
+          st.circleLastRad = rad;
+        }
+      }
+    };
+
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1 && !st.anyScreenOpen) {
+        const touch = e.touches[0];
+        if (distFromCenter(touch.clientX, touch.clientY) < 80) return;
+        st.circleTracking = true;
+        st.circleAngle = angleFromCenter(touch.clientX, touch.clientY);
+        st.circleCumulative = 0;
+        st.circleStartRad = st.circleAngle;
+        st.circleLastRad = st.circleAngle;
+      }
+      handleTouch(e);
+    };
+
     const handleTouchEnd = () => {
-      // 在移动端将光标重置到中心，防止标签卡住
+      if (st.circleTracking && st.circleCumulative > 300) {
+        if (audio.seqLoaded) {
+          audio.playFullSequence();
+        }
+      }
+      st.circleTracking = false;
+      st.circleCumulative = 0;
       if (st.isMobile) {
         st.cursorX = st.W / 2;
         st.cursorY = st.H / 2;
       }
     };
+
     window.addEventListener("mousemove", handleMouse, { passive: true });
+    window.addEventListener("mousedown", handleMouseDown, { passive: true });
+    window.addEventListener("mouseup", handleMouseUp, { passive: true });
     window.addEventListener("touchmove", handleTouch, { passive: true });
-    window.addEventListener("touchstart", handleTouch, { passive: true });
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
     window.addEventListener("touchend", handleTouchEnd, { passive: true });
     return () => {
       window.removeEventListener("mousemove", handleMouse);
+      window.removeEventListener("mousedown", handleMouseDown);
+      window.removeEventListener("mouseup", handleMouseUp);
       window.removeEventListener("touchmove", handleTouch);
-      window.removeEventListener("touchstart", handleTouch);
+      window.removeEventListener("touchstart", handleTouchStart);
       window.removeEventListener("touchend", handleTouchEnd);
     };
   }, []);
@@ -1201,7 +1338,12 @@ export default function Home() {
                 st.greetingDone &&
                 !st.anyScreenOpen
               ) {
-                audio.playHover();
+                if (audio.seqLoaded) {
+                  // 有 MP3 序列 → 用下一段替代原有 hover 音效
+                  audio.playNextSegment();
+                } else {
+                  audio.playHover();
+                }
               }
               label.classList.add("visible");
             } else {
@@ -1232,6 +1374,7 @@ export default function Home() {
   const toggleTheme = useCallback(() => {
     const newTheme = (stateRef.current.themeIdx + 1) % 3;
     userManuallySwitchedRef.current = true;
+    audio.unlockSequence();
     applyTheme(newTheme, true);
   }, [applyTheme]);
 
@@ -1376,25 +1519,33 @@ export default function Home() {
             audio.playClick();
             st.transitionTarget = { x: clCenterX, y: clCenterY };
 
-            const glow = document.createElement("div");
-            glow.className = "expanding-glow";
-            glow.style.left = clCenterX + "px";
-            glow.style.top = clCenterY + "px";
-            if (st.themeIdx === 1) {
-              glow.style.background =
-                "radial-gradient(circle, rgba(245,180,80,1) 0%, transparent 80%)";
-              glow.style.mixBlendMode = "normal";
-            } else if (st.themeIdx === 2) {
-              glow.style.background =
-                "radial-gradient(circle, rgba(242,109,33,1) 0%, transparent 80%)";
-              glow.style.mixBlendMode = "normal";
-            } else {
-              glow.style.background = `radial-gradient(circle, rgba(${c.color.join(",")},1) 0%, transparent 80%)`;
-              glow.style.mixBlendMode = "screen";
+            // 水波纹过渡：创建多层涟漪环
+            const rippleContainer = document.createElement("div");
+            rippleContainer.className = "ripple-transition";
+            rippleContainer.style.left = clCenterX + "px";
+            rippleContainer.style.top = clCenterY + "px";
+            document.body.appendChild(rippleContainer);
+
+            const ringCount = 4;
+            const themeColors: [number,number,number][] = st.themeIdx === 0
+              ? [c.color as [number,number,number]]
+              : st.themeIdx === 1
+              ? [[181,117,122], [200,160,150], [160,180,200]]
+              : [[242,109,33], [255,166,0], [200,100,20]];
+
+            for (let i = 0; i < ringCount; i++) {
+              const ring = document.createElement("div");
+              ring.className = "ripple-ring";
+              const color = themeColors[i % themeColors.length];
+              ring.style.borderColor = `rgba(${color[0]},${color[1]},${color[2]},0.6)`;
+              ring.style.animationDelay = `${i * 0.12}s`;
+              ring.style.animationDuration = "1.2s";
+              rippleContainer.appendChild(ring);
             }
-            document.body.appendChild(glow);
-            void glow.offsetWidth;
-            glow.classList.add("active");
+
+            setTimeout(() => {
+              rippleContainer.remove();
+            }, 1800);
 
             // 清空缓存 + 加载中
             clearIdleTimer(); // 进入树洞时清除提示
@@ -1489,8 +1640,8 @@ export default function Home() {
               closeAllScreens();
               setReadingVisible(true);
               setTimeout(() => {
-                glow.style.opacity = "0";
-                setTimeout(() => glow.remove(), 1500);
+                rippleContainer.style.opacity = "0";
+                setTimeout(() => rippleContainer.remove(), 1500);
               }, 500);
             }, 1200);
             return;
@@ -1915,6 +2066,19 @@ export default function Home() {
     }
   }, [anyScreenOpen, clearIdleTimer]);
 
+  // 加载自定义主题颜色
+  useEffect(() => {
+    const saved = localStorage.getItem("theme-custom-color");
+    if (saved) {
+      setCustomColor(saved);
+      document.documentElement.style.setProperty("--amber", saved);
+      document.documentElement.style.setProperty(
+        "--amber-dim",
+        saved + "80",
+      );
+    }
+  }, []);
+
   useEffect(() => {
     stateRef.current.isEnglishMode = isEnglishMode;
     // 更新现有标签
@@ -2202,6 +2366,66 @@ export default function Home() {
               </button>
             </div>
             <nav className="top-nav">
+              {currentUser && (
+                <button
+                  className="notif-bell"
+                  onClick={async () => {
+                    setNotifPanelOpen((prev) => !prev);
+                    if (!notifPanelOpen) {
+                      try {
+                        const res = await notificationsApi.list();
+                        setNotifications(res.notifications);
+                        const unreadRes = await notificationsApi.unreadCount();
+                        setNotifUnread(unreadRes.count);
+                      } catch {}
+                    }
+                  }}
+                  aria-label="Notifications"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    cursor: "pointer",
+                    position: "relative",
+                    padding: "4px 8px",
+                  }}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    width="18"
+                    height="18"
+                    style={{ color: "var(--warm-faint)" }}
+                  >
+                    <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                    <path d="M13.73 21a2 2 0 01-3.46 0" />
+                  </svg>
+                  {notifUnread > 0 && (
+                    <span
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        right: 2,
+                        background: "var(--amber)",
+                        color: "#000",
+                        borderRadius: "50%",
+                        width: 16,
+                        height: 16,
+                        fontSize: 10,
+                        fontWeight: 700,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {notifUnread > 9 ? "9+" : notifUnread}
+                    </span>
+                  )}
+                </button>
+              )}
               <button
                 className={`sound-indicator ${isMuted ? "muted" : "playing"}`}
                 onClick={() => {
@@ -2210,6 +2434,7 @@ export default function Home() {
                     audio.setTheme(themeIdx);
                   }
                   setIsMuted(muted);
+                  audio.unlockSequence();
                 }}
                 aria-label="Toggle sound"
                 title={
@@ -2386,6 +2611,147 @@ export default function Home() {
           </div>
         </div>
 
+        {/* ════ NOTIFICATION PANEL ════ */}
+        {notifPanelOpen && (
+          <div
+            className="notif-panel"
+            style={{
+              position: "fixed",
+              top: 56,
+              right: 16,
+              width: 340,
+              maxHeight: "70vh",
+              overflow: "hidden auto",
+              background: "rgba(20,20,35,0.97)",
+              backdropFilter: "blur(20px)",
+              border: "1px solid var(--border-line)",
+              borderRadius: 14,
+              zIndex: 80,
+              boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+              padding: "12px 0",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "0 16px 10px",
+                borderBottom: "1px solid var(--border-line)",
+                marginBottom: 4,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "var(--font-serif)",
+                  fontSize: 16,
+                  color: "var(--warm-white)",
+                }}
+              >
+                {t("消息中心", "Messages")}
+              </span>
+              <button
+                onClick={() => setNotifPanelOpen(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--warm-faint)",
+                  cursor: "pointer",
+                  fontSize: 14,
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            {notifications.length === 0 ? (
+              <div
+                style={{
+                  padding: "20px 16px",
+                  textAlign: "center",
+                  color: "var(--warm-faint)",
+                  fontFamily: "var(--font-body)",
+                  fontSize: 14,
+                }}
+              >
+                {t("暂无消息", "No messages yet")}
+              </div>
+            ) : (
+              notifications.map((n) => (
+                <div
+                  key={n.id}
+                  onClick={async () => {
+                    try {
+                      await notificationsApi.read(n.id);
+                      setNotifications((prev) =>
+                        prev.map((item) =>
+                          item.id === n.id ? { ...item, isRead: true } : item,
+                        ),
+                      );
+                      setNotifUnread((prev) => Math.max(0, prev - 1));
+                    } catch {}
+                  }}
+                  style={{
+                    padding: "10px 16px",
+                    cursor: "pointer",
+                    borderBottom: "1px solid rgba(255,255,255,0.04)",
+                    background: n.isRead
+                      ? "transparent"
+                      : "rgba(232,145,90,0.06)",
+                    transition: "background .15s",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          color: n.isRead
+                            ? "var(--warm-faint)"
+                            : "var(--warm-white)",
+                          fontFamily: "var(--font-body)",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {n.title}
+                      </div>
+                      {n.content && (
+                        <div
+                          style={{
+                            fontSize: 12,
+                            color: "var(--warm-faint)",
+                            fontFamily: "var(--font-body)",
+                            opacity: 0.7,
+                          }}
+                        >
+                          {n.content}
+                        </div>
+                      )}
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: "var(--warm-faint)",
+                        opacity: 0.5,
+                        whiteSpace: "nowrap",
+                        fontFamily: "var(--font-body)",
+                      }}
+                    >
+                      {timeAgo(n.createdAt, isEnglishMode)}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         {/* ════ READING SCREEN ════ */}
         <div
           className={`screen ${readingVisible ? "visible" : ""}`}
@@ -2544,6 +2910,82 @@ export default function Home() {
                 value={composeText}
                 onChange={(e) => setComposeText(e.target.value)}
               />
+              <div style={{ position: "relative", marginTop: 6 }}>
+                <button
+                  className="emoji-toggle"
+                  onClick={() => {
+                    emojiTargetRef.current = "compose";
+                    setEmojiPickerOpen((prev) => !prev);
+                  }}
+                  aria-label="Emoji picker"
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid var(--border-line)",
+                    borderRadius: 8,
+                    padding: "6px 12px",
+                    color: "var(--warm-faint)",
+                    fontSize: 18,
+                    cursor: "pointer",
+                    fontFamily: "var(--font-body)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  😊 <span style={{ fontSize: 12 }}>{t("表情", "Emoji")}</span>
+                </button>
+                {emojiPickerOpen && emojiTargetRef.current === "compose" && (
+                  <div
+                    className="emoji-picker"
+                    style={{
+                      position: "absolute",
+                      bottom: "100%",
+                      left: 0,
+                      marginBottom: 8,
+                      background: "rgba(20,20,35,0.97)",
+                      backdropFilter: "blur(16px)",
+                      border: "1px solid var(--border-line)",
+                      borderRadius: 12,
+                      padding: 10,
+                      display: "grid",
+                      gridTemplateColumns: "repeat(8, 1fr)",
+                      gap: 6,
+                      zIndex: 70,
+                      maxWidth: 360,
+                      boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    {EMOJI_LIST.map((emoji, i) => (
+                      <button
+                        key={i}
+                        onClick={() => {
+                          setComposeText((prev) => prev + emoji);
+                          setEmojiPickerOpen(false);
+                        }}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          fontSize: 20,
+                          cursor: "pointer",
+                          padding: 4,
+                          borderRadius: 6,
+                          transition: "background .15s",
+                        }}
+                        onMouseEnter={(e) => {
+                          (e.target as HTMLElement).style.background =
+                            "rgba(255,255,255,0.1)";
+                        }}
+                        onMouseLeave={(e) => {
+                          (e.target as HTMLElement).style.background =
+                            "transparent";
+                        }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="compose-footer">
               <div className="compose-char">
@@ -3101,6 +3543,172 @@ export default function Home() {
                     </svg>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="settings-section">
+              <span className="settings-section-title">
+                {t("外观", "Appearance")}
+              </span>
+              <div className="settings-card">
+                <div
+                  className="settings-item"
+                  onClick={() => setShowColorPicker(!showColorPicker)}
+                  style={{ cursor: "pointer" }}
+                >
+                  <span>{t("主题颜色", "Theme Color")}</span>
+                  <div className="settings-item-val">
+                    <span
+                      style={{
+                        display: "inline-block",
+                        width: 20,
+                        height: 20,
+                        borderRadius: "50%",
+                        background: customColor || "var(--amber)",
+                        border: "2px solid var(--border-line)",
+                        marginRight: 6,
+                      }}
+                    />
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        transform: showColorPicker ? "rotate(90deg)" : "none",
+                        transition: "transform .2s",
+                      }}
+                    >
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </div>
+                </div>
+                {showColorPicker && (
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      borderTop: "1px solid var(--border-line)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(6, 1fr)",
+                        gap: 8,
+                        marginBottom: 12,
+                      }}
+                    >
+                      {PRESET_THEME_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          onClick={() => {
+                            setCustomColor(color);
+                            document.documentElement.style.setProperty(
+                              "--amber",
+                              color,
+                            );
+                            document.documentElement.style.setProperty(
+                              "--amber-dim",
+                              color + "80",
+                            );
+                            localStorage.setItem("theme-custom-color", color);
+                          }}
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            background: color,
+                            border:
+                              customColor === color
+                                ? "2px solid var(--warm-white)"
+                                : "2px solid var(--border-line)",
+                            cursor: "pointer",
+                            transition: "transform .15s",
+                          }}
+                          onMouseEnter={(e) => {
+                            (e.target as HTMLElement).style.transform =
+                              "scale(1.15)";
+                          }}
+                          onMouseLeave={(e) => {
+                            (e.target as HTMLElement).style.transform =
+                              "scale(1)";
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 13,
+                          color: "var(--warm-faint)",
+                          fontFamily: "var(--font-body)",
+                        }}
+                      >
+                        {t("自定义", "Custom")}:
+                      </span>
+                      <input
+                        type="color"
+                        value={customColor || "#e8915a"}
+                        onChange={(e) => {
+                          const color = e.target.value;
+                          setCustomColor(color);
+                          document.documentElement.style.setProperty(
+                            "--amber",
+                            color,
+                          );
+                          document.documentElement.style.setProperty(
+                            "--amber-dim",
+                            color + "80",
+                          );
+                          localStorage.setItem("theme-custom-color", color);
+                        }}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          border: "1px solid var(--border-line)",
+                          borderRadius: 8,
+                          cursor: "pointer",
+                          background: "transparent",
+                          padding: 2,
+                        }}
+                      />
+                      {customColor && (
+                        <button
+                          onClick={() => {
+                            setCustomColor("");
+                            document.documentElement.style.removeProperty(
+                              "--amber",
+                            );
+                            document.documentElement.style.removeProperty(
+                              "--amber-dim",
+                            );
+                            localStorage.removeItem("theme-custom-color");
+                          }}
+                          style={{
+                            background: "transparent",
+                            border: "1px solid var(--border-line)",
+                            borderRadius: 6,
+                            padding: "4px 10px",
+                            color: "var(--warm-faint)",
+                            fontSize: 12,
+                            cursor: "pointer",
+                            fontFamily: "var(--font-body)",
+                          }}
+                        >
+                          {t("重置", "Reset")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

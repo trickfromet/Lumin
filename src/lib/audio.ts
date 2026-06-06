@@ -9,6 +9,14 @@ class AudioManager {
   private masterGain: GainNode | null = null;
   private ambientGain: GainNode | null = null;
 
+  // 音频序列（MP3 分段播放）
+  private seqBuffer: AudioBuffer | null = null;
+  private seqSegmentDuration: number = 0.5;
+  public seqTotalSegments: number = 10;
+  public seqCurrentIndex: number = 0;
+  public seqLoaded: boolean = false;
+  public seqAllPlayed: boolean = false;
+
   // 星空环境音
   private spaceDroneOsc1: OscillatorNode | null = null;
   private spaceDroneOsc2: OscillatorNode | null = null;
@@ -250,26 +258,34 @@ class AudioManager {
       this.waterNoiseGain.gain.setValueAtTime(0, now);
       this.waterNoiseGain.gain.setTargetAtTime(0.05, now, 2);
 
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 400; // 模拟沉闷的水波白噪音
-      filter.connect(this.waterNoiseGain);
+      // 多层滤波：低通 200Hz 去除高频嘶声 + 带通 150Hz 增强低沉水波
+      const lowpass = this.ctx.createBiquadFilter();
+      lowpass.type = "lowpass";
+      lowpass.frequency.value = 200; // 降低截止频率，平滑高频白噪
+
+      const bandpass = this.ctx.createBiquadFilter();
+      bandpass.type = "bandpass";
+      bandpass.frequency.value = 150; // 中心 150Hz，强化水波沉闷感
+      bandpass.Q.value = 0.7;
+
+      lowpass.connect(bandpass);
+      bandpass.connect(this.waterNoiseGain);
       this.waterNoiseGain.connect(this.ambientGain);
 
       // LFO 模拟细碎涟漪
       const lfo = this.ctx.createOscillator();
       lfo.type = "sine";
-      lfo.frequency.value = 0.3;
+      lfo.frequency.value = 0.2;
       const lfoGain = this.ctx.createGain();
-      lfoGain.gain.value = 150;
+      lfoGain.gain.value = 80;
       lfo.connect(lfoGain);
-      lfoGain.connect(filter.frequency);
+      lfoGain.connect(lowpass.frequency);
       lfo.start();
 
       this.waterNoiseSrc = this.ctx.createBufferSource();
       this.waterNoiseSrc.buffer = this.createNoiseBuffer(this.ctx, 5);
       this.waterNoiseSrc.loop = true;
-      this.waterNoiseSrc.connect(filter);
+      this.waterNoiseSrc.connect(lowpass);
       this.waterNoiseSrc.start();
 
       // 2. 极轻的火焰噼啪声 (Campfire crackle)
@@ -356,10 +372,10 @@ class AudioManager {
       this.campfireRumbleSrc.connect(rumbleFilter);
       this.campfireRumbleSrc.start();
 
-      // 2. 高频噼啪声 (Fire crackle, bandpass ~5000Hz)
+      // 2. 高频噼啪声 (Fire crackle, bandpass ~5000Hz) — 增强增益
       this.campfireCrackleGain = this.ctx.createGain();
       this.campfireCrackleGain.gain.setValueAtTime(0, now);
-      this.campfireCrackleGain.gain.setTargetAtTime(0.025, now, 2);
+      this.campfireCrackleGain.gain.setTargetAtTime(0.04, now, 2);
 
       const crackleFilter = this.ctx.createBiquadFilter();
       crackleFilter.type = "bandpass";
@@ -389,18 +405,18 @@ class AudioManager {
           this.ctx.currentTime + 0.15,
         );
 
-        popGain.gain.setValueAtTime(0.06, this.ctx.currentTime);
+        popGain.gain.setValueAtTime(0.09, this.ctx.currentTime);
         popGain.gain.exponentialRampToValueAtTime(
           0.001,
-          this.ctx.currentTime + 0.2,
+          this.ctx.currentTime + 0.25,
         );
 
         popOsc.connect(popGain);
         popGain.connect(this.convolver!);
         popOsc.start();
-        popOsc.stop(this.ctx.currentTime + 0.2);
+        popOsc.stop(this.ctx.currentTime + 0.25);
 
-        const nextInterval = 5000 + Math.random() * 10000;
+        const nextInterval = 3000 + Math.random() * 5000;
         this.ambientIntervals.push(
           window.setTimeout(playPop, nextInterval),
         );
@@ -651,21 +667,54 @@ class AudioManager {
     this.init();
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
+    const ctx = this.ctx;
 
-    // 播放过渡音效
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.linearRampToValueAtTime(250, now + 0.4);
-    osc.frequency.linearRampToValueAtTime(150, now + 0.8);
-    gain.gain.setValueAtTime(0, now);
-    gain.gain.linearRampToValueAtTime(0.06, now + 0.4);
-    gain.gain.linearRampToValueAtTime(0.001, now + 0.8);
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start();
-    osc.stop(now + 0.8);
+    if (this.themeIdx === 0) {
+      // 星空：C5-E5-G5 大三和弦琶音 (水晶般明亮)
+      [523, 659, 784].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + i * 0.12);
+        gain.gain.setValueAtTime(0, now + i * 0.12);
+        gain.gain.linearRampToValueAtTime(0.05, now + i * 0.12 + 0.08);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.5);
+        osc.connect(gain);
+        gain.connect(this.convolver!);
+        osc.start(now + i * 0.12);
+        osc.stop(now + i * 0.12 + 0.5);
+      });
+    } else if (this.themeIdx === 1) {
+      // 水面：D3 → A2 轻柔下行，模拟水波沉入
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(147, now);
+      osc.frequency.exponentialRampToValueAtTime(110, now + 0.6);
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.06, now + 0.2);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 0.8);
+    } else {
+      // 篝火：E2-G2-E2 温暖低音律动
+      [82, 98, 82].forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + i * 0.15);
+        gain.gain.setValueAtTime(0, now + i * 0.15);
+        gain.gain.linearRampToValueAtTime(0.07, now + i * 0.15 + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
+        osc.connect(gain);
+        gain.connect(this.convolver!);
+        osc.start(now + i * 0.15);
+        osc.stop(now + i * 0.15 + 0.4);
+      });
+    }
   }
 
   playMeToo() {
@@ -747,6 +796,164 @@ class AudioManager {
         this.campfireRumbleGain.gain.setTargetAtTime(0.07, now + 6, 3);
       }
     }
+  }
+
+  // ── 音频序列（MP3 分段 + 完整播放）──
+
+  /** 加载 MP3 并切分为 seqTotalSegments 段 */
+  async loadSequence(url: string) {
+    try {
+      if (typeof window === "undefined") return;
+      this.init();
+      if (!this.ctx) return;
+      const res = await fetch(url);
+      const buf = await res.arrayBuffer();
+      this.seqBuffer = await this.ctx.decodeAudioData(buf);
+      // 按 0.5s 分段，取整
+      this.seqSegmentDuration = 0.5;
+      this.seqTotalSegments = Math.max(
+        1,
+        Math.floor(this.seqBuffer.duration / this.seqSegmentDuration),
+      );
+      this.seqCurrentIndex = 0;
+      this.seqAllPlayed = false;
+      this.seqLoaded = true;
+    } catch {
+      this.seqLoaded = false;
+    }
+  }
+
+  // ── 音频序列状态 ──
+  public seqFullPlaying: boolean = false;
+  public seqHoverCount: number = 0;       // 累计悬停次数（0→5）
+  private seqFullSource: AudioBufferSourceNode | null = null;
+  private seqNextTime: number = 0;
+
+  /** 播放下一个 0.5s 片段（精确时间线调度）。累计 5 次后触发完整播放 */
+  playNextSegment(): boolean {
+    if (!this.seqBuffer || !this.ctx || this.isMuted) return false;
+    if (this.seqFullPlaying) return false;
+
+    this.seqHoverCount++;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    if (this.seqNextTime < now) {
+      this.seqNextTime = now + 0.05;
+    }
+
+    const idx = this.seqCurrentIndex;
+    this.seqCurrentIndex++;
+
+    const bufStart = idx * this.seqSegmentDuration;
+    const dur = 0.5;
+    const when = this.seqNextTime;
+    this.seqNextTime = when + dur + 0.01;
+
+    const src = ctx.createBufferSource();
+    src.buffer = this.seqBuffer;
+
+    const gain = ctx.createGain();
+    const fade = 0.02;
+    gain.gain.setValueAtTime(0, when);
+    gain.gain.linearRampToValueAtTime(0.55, when + fade);
+    gain.gain.setValueAtTime(0.55, when + dur - fade);
+    gain.gain.linearRampToValueAtTime(0, when + dur);
+
+    src.connect(gain);
+    gain.connect(this.masterGain!);
+    src.start(when, bufStart, dur + 0.02);
+    src.stop(when + dur + 0.05);
+
+    // 第 5 次悬停 → 当前段播完后从该位置开始完整播放
+    if (this.seqHoverCount >= 5) {
+      const segmentStartMs = (when - ctx.currentTime) * 1000 + dur + 0.1;
+      // 阻止后续悬停产生新片段
+      this.seqFullPlaying = true;
+      setTimeout(() => {
+        this.playFullSequenceFrom(idx * this.seqSegmentDuration);
+      }, Math.max(0, segmentStartMs));
+      return true;
+    }
+
+    return this.seqCurrentIndex >= this.seqTotalSegments;
+  }
+
+  /** 从指定秒数开始播放完整 MP3，到结尾后从头循环（1.5s 间隔） */
+  private playFullSequenceFrom(startTime: number) {
+    if (!this.seqBuffer || !this.ctx || this.isMuted) return;
+    this.stopFullSequence();
+    this.seqFullPlaying = true;
+    this.stopAmbient();
+
+    const totalDur = this.seqBuffer.duration;
+
+    const playOnce = (from: number, to: number) => {
+      if (!this.seqBuffer || !this.ctx || this.isMuted) {
+        this.seqFullPlaying = false;
+        return;
+      }
+      const src = this.ctx.createBufferSource();
+      src.buffer = this.seqBuffer;
+      src.connect(this.masterGain!);
+      // 播放 [from, to) 段
+      src.start(0, from, to - from);
+      return src;
+    };
+
+    // 第一段：从 startTime 播到结尾
+    const first = playOnce(startTime, totalDur);
+    if (!first) return;
+    this.seqFullSource = first;
+
+    // 第一段结束后 → 从头循环（1.5s 间隔）
+    first.onended = () => {
+      if (this.isMuted || !this.seqFullPlaying) { this.seqFullPlaying = false; return; }
+      const loop = () => {
+        if (!this.seqBuffer || !this.ctx || this.isMuted || !this.seqFullPlaying) {
+          this.seqFullPlaying = false;
+          return;
+        }
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.seqBuffer;
+        src.connect(this.masterGain!);
+        src.start();
+        src.onended = () => {
+          if (this.isMuted || !this.seqFullPlaying) { this.seqFullPlaying = false; return; }
+          setTimeout(loop, 1500);
+        };
+        this.seqFullSource = src;
+      };
+      setTimeout(loop, 1500);
+    };
+  }
+
+  /** 从开头播放完整 MP3（画圆手势用） */
+  playFullSequence() {
+    this.playFullSequenceFrom(0);
+  }
+
+  /** 停止完整音频循环 */
+  stopFullSequence() {
+    this.seqFullSource?.stop();
+    this.seqFullSource?.disconnect();
+    this.seqFullSource = null;
+    this.seqFullPlaying = false;
+  }
+
+  /** 解锁缓冲区（主题切换 / 静音开关时调用） */
+  unlockSequence() {
+    this.stopFullSequence();
+    this.seqHoverCount = 0;
+    this.seqCurrentIndex = 0;
+    this.seqAllPlayed = false;
+    this.seqNextTime = 0;
+  }
+
+  /** 重置序列计数器 */
+  resetSequence() {
+    this.seqCurrentIndex = 0;
+    this.seqAllPlayed = false;
   }
 }
 

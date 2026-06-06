@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "pages:build": "npx prisma generate && npx @cloudflare/next-on-pages"
+    "pages:build": "npx prisma generate && npx @cloudflare/next-on-pages",
+    "test:e2e": "node tests/e2e/runner.js",
+    "dev:local": "node dev-local.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1045.0",
