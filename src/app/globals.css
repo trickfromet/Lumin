@@ -1001,11 +1001,53 @@ html.app-ready.campfire-theme #fire-container {
 }
 
 /* ── 水波纹过渡动画 ── */
-.ripple-transition {
+.ripple-transition-wrapper {
     position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    left: 0;
+    top: 0;
     z-index: 55;
     pointer-events: none;
+    opacity: 1;
+    transition: opacity 1.0s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.ripple-transition {
+    position: absolute;
+    pointer-events: none;
     transform: translate(-50%, -50%);
+}
+
+/* 逐渐覆盖全屏的晕染遮罩 */
+.ripple-mask-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    /* 伴随水波涟漪逐渐显现，完成全屏色彩遮挡与磨砂玻璃质感 */
+    animation: maskFadeIn 2.2s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
+}
+
+@keyframes maskFadeIn {
+    0%, 35% {
+        opacity: 0;
+        backdrop-filter: blur(0px);
+        -webkit-backdrop-filter: blur(0px);
+    }
+    70% {
+        opacity: 0.25;
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+    }
+    100% {
+        opacity: 0.95; /* 增加最终遮盖度，强化沉浸式底色覆盖效果 */
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+    }
 }
 
 .ripple-ring {
@@ -1015,8 +1057,8 @@ html.app-ready.campfire-theme #fire-container {
     border: 4px solid var(--amber-dim); 
     transform: translate(-50%, -50%) scale(0);
     opacity: 1;
-    /* 时长拉长至 3.5s，并优化缓动曲线以减慢初始扩散速度，模拟温润荡漾的水波阻力 */
-    animation: rippleExpand 3.5s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
+    /* 缩短时长至 2.2s，保持水波温润感，但大幅提高响应度 */
+    animation: rippleExpand 2.2s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
 }
 
 @keyframes rippleExpand {
@@ -1026,6 +1068,10 @@ html.app-ready.campfire-theme #fire-container {
         transform: translate(-50%, -50%) scale(0);
         opacity: 1;
         border-width: 8px; /* 初始水波能量大，边缘较粗 */
+    }
+    70% {
+        opacity: 0.5;
+        border-width: 3px; /* 随能量衰减边缘开始变细但仍保持清晰 */
     }
     100% {
         width: 150vmax; /* 确保完全覆盖视口 */

@@ -1513,12 +1513,25 @@ export default function Home() {
             audio.playClick(c.id);
             st.transitionTarget = { x: clCenterX, y: clCenterY };
 
-            // 水波纹过渡：创建多层涟漪环
+            // 水波纹过渡：创建全屏包裹容器 (解决 transform 对 position: fixed 产生的含有块限制 bug)
+            const transitionWrapper = document.createElement("div");
+            transitionWrapper.className = "ripple-transition-wrapper";
+            document.body.appendChild(transitionWrapper);
+
+            // 创建全屏渐变晕染遮罩 (Watercolor Bloom Mask)
+            const maskBg = document.createElement("div");
+            maskBg.className = "ripple-mask-bg";
+            const baseColor = c.color || [181, 117, 122];
+            // 从点击的中心进行晕染，向外过渡到背景底色（降低不透明度至 0.45 避免过亮）
+            maskBg.style.background = `radial-gradient(circle at ${clCenterX}px ${clCenterY}px, rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, 0.75) 0%, var(--void) 80%)`;
+            transitionWrapper.appendChild(maskBg);
+
+            // 创建多层涟漪环容器
             const rippleContainer = document.createElement("div");
             rippleContainer.className = "ripple-transition";
             rippleContainer.style.left = clCenterX + "px";
             rippleContainer.style.top = clCenterY + "px";
-            document.body.appendChild(rippleContainer);
+            transitionWrapper.appendChild(rippleContainer);
 
             const ringCount = 4;
             const themeColors: [number,number,number][] = st.themeIdx === 0
@@ -1537,7 +1550,7 @@ export default function Home() {
             }
 
             setTimeout(() => {
-              rippleContainer.remove();
+              transitionWrapper.remove();
             }, 5500);
 
             // 清空缓存 + 加载中
@@ -1628,15 +1641,13 @@ export default function Home() {
                 .catch(() => {});
             }
 
-            // 动画拉长后，在 2.3s 时打开阅读屏幕，配合 3.5s 的温润涟漪渐变
+            // 在 2.3s 时同时拉起阅读界面并让遮罩淡出，实现交叉淡入淡出 (Cross-fade)
             setTimeout(() => {
               closeAllScreens();
               setReadingVisible(true);
-              setTimeout(() => {
-                rippleContainer.style.opacity = "0";
-                setTimeout(() => rippleContainer.remove(), 1500);
-              }, 500);
-            }, 200);
+              transitionWrapper.style.opacity = "0";
+              setTimeout(() => transitionWrapper.remove(), 1200); // 1.2s 渐变退场结束后销毁 DOM
+            }, 2300);
             return;
           }
         }
