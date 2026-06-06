@@ -1010,26 +1010,29 @@ html.app-ready.campfire-theme #fire-container {
 
 .ripple-ring {
     position: absolute;
-    width: 20px;
-    height: 20px;
     border-radius: 50%;
-    border: 2px solid rgba(232, 145, 90, 0.6);
+    /* 使用主题色，保持视觉一致 */
+    border: 4px solid var(--amber-dim); 
     transform: translate(-50%, -50%) scale(0);
-    opacity: 0;
-    animation: rippleExpand 1.2s ease-out forwards;
+    opacity: 1;
+    /* 时长拉长至 3.5s，并优化缓动曲线以减慢初始扩散速度，模拟温润荡漾的水波阻力 */
+    animation: rippleExpand 3.5s cubic-bezier(0.3, 0.6, 0.4, 1) forwards;
 }
 
 @keyframes rippleExpand {
     0% {
+        width: 0;
+        height: 0;
         transform: translate(-50%, -50%) scale(0);
-        opacity: 0.8;
-    }
-    60% {
-        opacity: 0.4;
+        opacity: 1;
+        border-width: 8px; /* 初始水波能量大，边缘较粗 */
     }
     100% {
-        transform: translate(-50%, -50%) scale(30);
+        width: 150vmax; /* 确保完全覆盖视口 */
+        height: 150vmax;
+        transform: translate(-50%, -50%) scale(1);
         opacity: 0;
+        border-width: 1px; /* 能量衰减，边缘变细 */
     }
 }
 
@@ -2717,3 +2720,4 @@ html.light-theme .toast {
     0%, 100% { opacity: 0.4; }
     50% { opacity: 1; }
 }
+

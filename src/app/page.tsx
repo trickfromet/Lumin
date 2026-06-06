@@ -921,10 +921,10 @@ export default function Home() {
         targetExplorerX = st.transitionTarget.x - st.W / 2;
         targetExplorerY = st.transitionTarget.y - st.H / 2;
         targetExplorerRot = 0;
-        st.explorerCurrentX += (targetExplorerX - st.explorerCurrentX) * 0.008;
-        st.explorerCurrentY += (targetExplorerY - st.explorerCurrentY) * 0.008;
+        st.explorerCurrentX += (targetExplorerX - st.explorerCurrentX) * 0.015; // 调大系数（从0.008调至0.055），让镜头在大约 0.8s 内快速定位至点击的树洞中心
+        st.explorerCurrentY += (targetExplorerY - st.explorerCurrentY) * 0.015;
         st.explorerCurrentRot +=
-          (targetExplorerRot - st.explorerCurrentRot) * 0.012;
+          (targetExplorerRot - st.explorerCurrentRot) * 0.06;
       } else {
         targetExplorerX = (st.cursorX - st.W / 2) * 0.06;
         targetExplorerY = (st.cursorY - st.H / 2) * 0.06;
@@ -1533,13 +1533,12 @@ export default function Home() {
               const color = themeColors[i % themeColors.length];
               ring.style.borderColor = `rgba(${color[0]},${color[1]},${color[2]},0.6)`;
               ring.style.animationDelay = `${i * 0.12}s`;
-              ring.style.animationDuration = "1.2s";
               rippleContainer.appendChild(ring);
             }
 
             setTimeout(() => {
               rippleContainer.remove();
-            }, 1800);
+            }, 5500);
 
             // 清空缓存 + 加载中
             clearIdleTimer(); // 进入树洞时清除提示
@@ -1629,7 +1628,7 @@ export default function Home() {
                 .catch(() => {});
             }
 
-            // 动画 1.2s 后先打开阅读屏幕
+            // 动画拉长后，在 2.3s 时打开阅读屏幕，配合 3.5s 的温润涟漪渐变
             setTimeout(() => {
               closeAllScreens();
               setReadingVisible(true);
@@ -1637,7 +1636,7 @@ export default function Home() {
                 rippleContainer.style.opacity = "0";
                 setTimeout(() => rippleContainer.remove(), 1500);
               }, 500);
-            }, 1200);
+            }, 200);
             return;
           }
         }
