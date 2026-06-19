@@ -12,7 +12,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Lumin — 星空与水面",
+  title: "树洞 — 星空与水面",
   description: "匿名树洞网站 — 在星空与水面之间，倾诉心事",
 };
 

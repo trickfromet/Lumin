@@ -686,29 +686,55 @@ class AudioManager {
         this.campfireCrackleGain.gain.setTargetAtTime(this.AMBIENT_CONFIG.campfireCrackle, now + 0.3, 0.5);
       }
     } else if (this.themeIdx === 1) {
-      // 水面返回：水声加大再回落，像船桨轻划 (0.8s)
-
+      // 水面「退潮」：波浪涌起 + 细碎水泡退去
       if (this.waterNoiseGain) {
-        this.waterNoiseGain.gain.setTargetAtTime(0.12, now, 0.2); // 瞬时加大
-        this.waterNoiseGain.gain.setTargetAtTime(
-          this.AMBIENT_CONFIG.waterMicro,
-          now + 0.3,
-          0.5,
-        ); // 回落
+        this.waterNoiseGain.gain.setTargetAtTime(0.18, now, 0.08);
+        this.waterNoiseGain.gain.setTargetAtTime(this.AMBIENT_CONFIG.waterMicro, now + 0.3, 0.4);
       }
       if (this.fireNoiseGain) {
-        this.fireNoiseGain.gain.setTargetAtTime(
-          this.AMBIENT_CONFIG.waterCampfire,
-          now,
-          0.5,
-        );
+        this.fireNoiseGain.gain.setTargetAtTime(this.AMBIENT_CONFIG.waterCampfire, now, 0.5);
+      }
+      // 水泡声：3-4 个短促音从 600Hz 滑到 250Hz
+      for (let i = 0; i < 4; i++) {
+        const tOff = 0.12 + i * 0.12;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = "sine";
+        const baseFreq = 600 - i * 90;
+        osc.frequency.setValueAtTime(baseFreq, now + tOff);
+        osc.frequency.exponentialRampToValueAtTime(250, now + tOff + 0.18);
+        g.gain.setValueAtTime(0, now + tOff);
+        g.gain.linearRampToValueAtTime(0.035, now + tOff + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.001, now + tOff + 0.25);
+        osc.connect(g);
+        g.connect(this.convolver!);
+        g.connect(this.masterGain!);
+        osc.start(now + tOff);
+        osc.stop(now + tOff + 0.3);
       }
     } else {
-      // 星空返回：环境音短暂淡出再淡入 (0.6s)
+      // 星空「坠入虚空」：晶莹双音滑入深渊
       if (this.spaceDroneGain) {
-        this.spaceDroneGain.gain.setTargetAtTime(0, now, 0.2);
-        this.spaceDroneGain.gain.setTargetAtTime(this.AMBIENT_CONFIG.spaceDrone, now + 0.4, 0.5);
+        this.spaceDroneGain.gain.setTargetAtTime(this.AMBIENT_CONFIG.spaceDrone * 2, now, 0.1);
+        this.spaceDroneGain.gain.setTargetAtTime(this.AMBIENT_CONFIG.spaceDrone, now + 0.6, 0.6);
       }
+      // 双振荡器：高音 shimmer 下滑
+      [1, 1.5].forEach((ratio) => {
+        const osc = this.ctx!.createOscillator();
+        const g = this.ctx!.createGain();
+        osc.type = "sine";
+        const startFreq = 2400 * ratio;
+        osc.frequency.setValueAtTime(startFreq, now);
+        osc.frequency.exponentialRampToValueAtTime(startFreq * 0.25, now + 0.8);
+        g.gain.setValueAtTime(0, now);
+        g.gain.linearRampToValueAtTime(0.05, now + 0.08);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+        osc.connect(g);
+        g.connect(this.convolver!);
+        g.connect(this.masterGain!);
+        osc.start(now);
+        osc.stop(now + 1.0);
+      });
     }
   }
 

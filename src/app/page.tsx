@@ -1379,6 +1379,7 @@ export default function Home() {
     const newFont = !hasEnglish;
     setIsEnglishMode(newFont);
     document.documentElement.classList.toggle("font-english", newFont);
+    document.documentElement.lang = newFont ? "en" : "zh";
     try {
       localStorage.setItem("langPref", newFont ? "en" : "zh");
     } catch {}
