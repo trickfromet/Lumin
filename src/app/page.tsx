@@ -597,7 +597,7 @@ export default function Home() {
 
     // 从标签获取树洞数据并构建星群
     treeholeApi
-      .list()
+      .list({ language: initialEnglish ? "en" : "zh" })
       .then((res) => {
         const data = res.treeholes || [];
         const sorted = [...data].sort(
@@ -1377,6 +1377,12 @@ export default function Home() {
     // 以 DOM class 为真实来源，消除 React state 闭包滞后导致的竞态
     const hasEnglish = document.documentElement.classList.contains("font-english");
     const newFont = !hasEnglish;
+
+    // 先立即清除旧标签 DOM，避免 useEffect([isEnglishMode]) 更新旧标签文字造成竞态
+    const st = stateRef.current;
+    Object.values(st.labelEls).forEach((el: HTMLElement) => el.remove());
+    st.labelEls = {};
+
     setIsEnglishMode(newFont);
     document.documentElement.classList.toggle("font-english", newFont);
     document.documentElement.lang = newFont ? "en" : "zh";
@@ -1387,6 +1393,35 @@ export default function Home() {
     // 清空当前单分类流的 cache，防止中英文混杂
     setPostCache([]);
     setCurrentPost(null);
+
+    // 按新语言重新拉取星群标签
+    treeholeApi.list({ language: newFont ? "en" : "zh" }).then((res) => {
+      const data = res.treeholes || [];
+      const sorted = [...data].sort(
+        (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
+      );
+      const indexByTag = sorted.reduce<Record<string, number>>(
+        (acc, item, idx) => { acc[item.tag] = idx; return acc; },
+        {},
+      );
+      setTreeholesData(data);
+      st.clusters = buildClusters(data, indexByTag, st.shuffleKey, st.isMobile);
+      const mainView = document.getElementById("mainView");
+      if (mainView) {
+        // 防御性清除：防止快速双击+请求乱序导致残留旧标签 DOM
+        Object.values(st.labelEls).forEach((el: HTMLElement) => el.remove());
+        st.labelEls = {};
+        data.forEach((hole, i) => {
+          if (i >= st.clusters.length) return;
+          const c = st.clusters[i];
+          const el = document.createElement("div");
+          el.className = "constellation-label";
+          el.textContent = tCategory(c.name, newFont);
+          mainView.appendChild(el);
+          st.labelEls[c.id] = el;
+        });
+      }
+    }).catch(() => {});
 
     // 终止正在进行的单分类预加载
     if (preloadControllerRef.current) {

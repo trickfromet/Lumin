@@ -15,10 +15,12 @@ export async function GET(request: Request) {
   };
   const days = ranges[range];
   const since = days ? new Date(now - days * 24 * 60 * 60 * 1000) : null;
+  const language = searchParams.get("language");
 
   // 第一步：查出所有可见帖子的 ID（避免在 groupBy 中使用跨表关系过滤，后者在 LibSQL 中可能异常）
   const visibleFilter: Record<string, unknown> = { isHidden: false };
   if (since) visibleFilter.createdAt = { gte: since };
+  if (language) visibleFilter.language = language;
   const visiblePosts = await prisma.post.findMany({
     where: visibleFilter,
     select: { id: true, createdAt: true, content: true },

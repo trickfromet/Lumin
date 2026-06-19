@@ -64,9 +64,10 @@ export const categories = {
 
 // ── Treeholes (Tags) ──
 export const treeholes = {
-  list: (params?: { range?: "day" | "week" | "month" }) => {
+  list: (params?: { range?: "day" | "week" | "month"; language?: string }) => {
     const qs = new URLSearchParams();
     if (params?.range) qs.set("range", params.range);
+    if (params?.language) qs.set("language", params.language);
     return request<{ treeholes: TreeHole[]; meta?: { range: string | null } }>(
       `/api/treeholes?${qs}`,
     );

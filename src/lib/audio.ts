@@ -824,6 +824,7 @@ class AudioManager {
         gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.5);
         osc.connect(gain);
         gain.connect(this.convolver!);
+        gain.connect(this.masterGain!);
         osc.start(now + i * 0.12);
         osc.stop(now + i * 0.12 + 0.5);
       });
@@ -843,19 +844,38 @@ class AudioManager {
       osc.start();
       osc.stop(now + 0.8);
     } else {
-      // 篝火：E2-G2-E2 温暖低音律动
-      [82, 98, 82].forEach((freq, i) => {
+      // 篝火：火焰爆裂 — 噪音 burst + C4-E4-G4 中频和弦（确保所有扬声器可听）
+      // 1. 噪音频闪（模拟柴火爆裂）
+      const noise = ctx.createBufferSource();
+      noise.buffer = this.createNoiseBuffer(ctx, 0.15);
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(3000, now);
+      noiseFilter.Q.setValueAtTime(3, now);
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0, now);
+      noiseGain.gain.linearRampToValueAtTime(0.1, now + 0.02);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+      noise.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain!);
+      noise.start(now);
+      noise.stop(now + 0.15);
+
+      // 2. 温暖中频和弦 C4-E4-G4
+      [262, 330, 392].forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         osc.type = "triangle";
-        osc.frequency.setValueAtTime(freq, now + i * 0.15);
-        gain.gain.setValueAtTime(0, now + i * 0.15);
-        gain.gain.linearRampToValueAtTime(0.07, now + i * 0.15 + 0.05);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.4);
+        osc.frequency.setValueAtTime(freq, now + i * 0.08);
+        gain.gain.setValueAtTime(0, now + i * 0.08);
+        gain.gain.linearRampToValueAtTime(0.08, now + i * 0.08 + 0.06);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.5);
         osc.connect(gain);
         gain.connect(this.convolver!);
-        osc.start(now + i * 0.15);
-        osc.stop(now + i * 0.15 + 0.4);
+        gain.connect(this.masterGain!);
+        osc.start(now + i * 0.08);
+        osc.stop(now + i * 0.08 + 0.6);
       });
     }
   }
