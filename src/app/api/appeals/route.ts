@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, AuthError } from "@/lib/auth";
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!user.isBanned && (!user.banExpiresAt || user.banExpiresAt <= new Date())) {
-    return error("你当前没有被封禁，无需申诉");
+    return error("你当前没有被封禁，无需申诉", 403);
   }
 
   // Check if already have a pending appeal

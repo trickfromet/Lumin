@@ -1,13 +1,16 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { getUserFromRequest } from "@/lib/auth";
-import { success } from "@/lib/api-response";
+import { success, unauthorized } from "@/lib/api-response";
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   const user = await getUserFromRequest();
 
   if (!user) {
-    return success({ user: null });
+    if (!request.cookies.has("th_token")) {
+      return success({ user: null });
+    }
+    return unauthorized();
   }
 
   return success({

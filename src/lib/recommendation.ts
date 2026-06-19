@@ -13,6 +13,8 @@ export interface RecommendedPost {
   metooCount: number;
   commentCount: number;
   userHasMetoed?: boolean;
+  allowComments?: boolean;
+  allowStrangerComments?: boolean;
 }
 
 // ── User Profile ──
@@ -275,6 +277,8 @@ function mapPost(
     tags: { tag: string }[];
     createdAt: Date;
     _count: { metoos: number; comments: number };
+    allowComments?: boolean | null;
+    allowStrangerComments?: boolean | null;
   },
 ): RecommendedPost {
   return {
@@ -289,5 +293,7 @@ function mapPost(
     createdAt: p.createdAt,
     metooCount: p._count.metoos,
     commentCount: p._count.comments,
+    allowComments: p.allowComments !== false,
+    allowStrangerComments: p.allowStrangerComments !== false,
   };
 }

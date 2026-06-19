@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, AuthError } from "@/lib/auth";
@@ -38,7 +38,7 @@ export async function POST(
     });
     return success({ message: "已屏蔽该用户" });
   } catch {
-    return error("已经屏蔽过该用户");
+    return error("已经屏蔽过该用户", 409);
   }
 }
 

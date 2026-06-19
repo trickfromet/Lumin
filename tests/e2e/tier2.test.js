@@ -389,9 +389,11 @@ describe('T2-F9: Blocking Edge Cases', () => {
     if (regRes.json && regRes.json.data && regRes.json.data.user) {
       const targetId = regRes.json.data.user.id;
       const agent2 = new TestAgent();
-      await agent2.post('/api/auth/login', { phoneOrEmail: email2, password: 'Password123!' });
+      await agent2.post('/api/auth/login', { phoneOrEmail: email, password: 'Password123!' });
       const res = await agent2.post(`/api/users/${targetId}/block`);
       expect([200, 201]).toContain(res.status);
+      const res2 = await agent2.post(`/api/users/${targetId}/block`);
+      expect(res2.status).toBe(409);
     }
   });
 
@@ -440,7 +442,7 @@ describe('T2-F10: Audio System Boundary Cases', () => {
   });
 
   test('T2-F10-04: Rapid mute toggle does not crash', async () => {
-    audio.isMuted = false;
+    audio.isMuted = true;
     audio.toggleMute();
     audio.toggleMute();
     audio.toggleMute();

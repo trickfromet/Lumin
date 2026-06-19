@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { requireAuth, AuthError } from "@/lib/auth";
 import { saveUpload } from "@/lib/upload";

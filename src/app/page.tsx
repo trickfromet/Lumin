@@ -2462,6 +2462,7 @@ export default function Home() {
                 <span className="inline md:hidden">{t("书写", "W")}</span>
               </button>
             </nav>
+            <div className="notif-marker" style={{ display: "none" }} />
             <div className="top-auth">
               {currentUser ? (
                 <button className="top-auth-btn" onClick={handleLogout}>

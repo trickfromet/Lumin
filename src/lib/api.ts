@@ -25,9 +25,12 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     }
     data = {} as T;
   }
-
   if (!res.ok) {
     throw new Error(data?.error || `请求失败 (状态码: ${res.status})`);
+  }
+
+  if (data && typeof data === "object" && "success" in data && "data" in data) {
+    return (data as any).data as T;
   }
   return data as T;
 }

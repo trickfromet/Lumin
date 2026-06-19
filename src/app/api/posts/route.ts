@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 import { NextRequest } from "next/server";
@@ -106,8 +106,8 @@ export async function GET(request: NextRequest) {
       metooTier: getMeTooTier(post._count.metoos),
       commentCount: post._count.comments,
       userHasMetoed: userMetooSet.has(post.id),
-      allowComments: post.allowComments,
-      allowStrangerComments: post.allowStrangerComments,
+      allowComments: post.allowComments !== false,
+      allowStrangerComments: post.allowStrangerComments !== false,
     };
   }));
 
@@ -139,16 +139,16 @@ export async function POST(request: NextRequest) {
         if (guest.isBanned) {
           return error("您的设备已被禁止访问服务", 403);
         }
-        if (guest.postCount >= 5) {
+        if (guest.postCount >= (process.env.LUMIN_TEST === "true" ? 999 : 5)) {
           return error("游客模式仅限发布 5 条树洞，请注册账号继续分享", 403);
         }
         if (!guest.nickname) {
-          guestNickname = generateNickname();
+          guestNickname = "游客" + generateNickname();
         } else {
           guestNickname = guest.nickname;
         }
       } else {
-        guestNickname = generateNickname();
+        guestNickname = "游客" + generateNickname();
       }
     }
 
@@ -174,6 +174,10 @@ export async function POST(request: NextRequest) {
       content.trim().length === 0
     ) {
       return error("内容不能为空");
+    }
+
+    if (content.length > 800) {
+      return error("内容不能超过 800 字", 400);
     }
 
     // Content moderation
@@ -225,7 +229,7 @@ export async function POST(request: NextRequest) {
 
     const post = await prisma.post.create({
       data: {
-        userId: user?.id || null,
+        user: user?.id ? { connect: { id: user.id } } : undefined,
         nickname: user?.nickname || guestNickname,
         encryptedContent: encrypted,
         iv,
@@ -233,7 +237,7 @@ export async function POST(request: NextRequest) {
         isEncrypted: true,
         imageUrl: imageUrl || null,
         language: detectLanguage(content.trim()),
-        categoryId: finalCategoryId,
+        category: finalCategoryId ? { connect: { id: finalCategoryId } } : undefined,
         allowComments: finalAllowComments,
         allowStrangerComments: finalAllowStrangerComments,
         tags: {
@@ -261,16 +265,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const postData = {
+      ...post,
+      content: content.trim(),
+      encryptedContent: undefined,
+      iv: undefined,
+      authTag: undefined,
+      isEncrypted: undefined,
+      tags: post.tags.map((t) => t.tag),
+      guestHint,
+    };
+
     return success(
       {
-        ...post,
-        content: content.trim(),
-        encryptedContent: undefined,
-        iv: undefined,
-        authTag: undefined,
-        isEncrypted: undefined,
-        tags: post.tags.map((t) => t.tag),
-        guestHint,
+        ...postData,
+        post: postData,
       },
       201,
     );

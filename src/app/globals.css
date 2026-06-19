@@ -23,6 +23,12 @@
 
     --font-serif: "LXGW WenKai", var(--font-cormorant), Georgia, serif;
     --font-body: "LXGW WenKai", -apple-system, system-ui, sans-serif;
+
+    /* 空闲换一批样式变量 */
+    --idle-bg: rgba(20, 20, 30, 0.7);
+    --idle-hover-bg: rgba(20, 20, 30, 0.85);
+    --idle-color: var(--warm-muted);
+    --idle-border: var(--border-line);
 }
 
 html {
@@ -41,6 +47,12 @@ html.light-theme {
     --warm-muted: #4e5560;
     --warm-faint: #6b727d;
     --border-line: rgba(90, 98, 112, 0.12);
+
+    /* 水面主题空闲提示变量 */
+    --idle-bg: rgba(255, 255, 255, 0.75);
+    --idle-hover-bg: rgba(255, 255, 255, 0.9);
+    --idle-color: var(--warm-muted);
+    --idle-border: rgba(90, 98, 112, 0.25);
 }
 
 html.campfire-theme {
@@ -53,6 +65,12 @@ html.campfire-theme {
     --warm-muted: #c4b5a5;
     --warm-faint: #8a7b6e;
     --border-line: rgba(242, 139, 61, 0.18);
+
+    /* 篝火主题空闲提示变量 */
+    --idle-bg: rgba(30, 26, 44, 0.7);
+    --idle-hover-bg: rgba(30, 26, 44, 0.85);
+    --idle-color: var(--warm-muted);
+    --idle-border: var(--border-line);
 }
 
 .app::before {
@@ -1766,7 +1784,6 @@ html.light-theme .screen-close svg {
     transition: opacity 2.5s ease;
 }
 
-/* ── 空闲换一批提示 ── */
 .idle-prompt {
     position: absolute;
     left: 50%;
@@ -1776,12 +1793,12 @@ html.light-theme .screen-close svg {
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    border: 1px solid var(--border-line);
+    border: 1px solid var(--idle-border, var(--border-line));
     border-radius: 20px;
-    background: rgba(20, 20, 30, 0.7);
+    background: var(--idle-bg, rgba(20, 20, 30, 0.7));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-    color: var(--warm-muted);
+    color: var(--idle-color, var(--warm-muted));
     font-family: var(--font-body);
     font-size: 14px;
     white-space: nowrap;
@@ -1794,7 +1811,7 @@ html.light-theme .screen-close svg {
 .idle-prompt:hover {
     color: var(--amber);
     border-color: var(--amber-dim);
-    background: rgba(20, 20, 30, 0.85);
+    background: var(--idle-hover-bg, rgba(20, 20, 30, 0.85));
 }
 .idle-prompt svg {
     flex-shrink: 0;

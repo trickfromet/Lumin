@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest, getIpFromRequest } from "@/lib/auth";
@@ -45,7 +45,7 @@ export async function POST(
     await notifyMeToo(post.userId, postId);
   }
 
-  return success({ metooed: true, count, tier });
+  return success({ metooed: true, count, metooCount: count, tier });
 }
 
 export async function DELETE(
@@ -75,5 +75,5 @@ export async function DELETE(
   const count = await prisma.meToo.count({ where: { postId } });
   const tier = getMeTooTier(count);
 
-  return success({ metooed: false, count, tier });
+  return success({ metooed: false, count, metooCount: count, tier });
 }

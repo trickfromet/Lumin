@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api-response";
 

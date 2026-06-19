@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { success } from "@/lib/api-response";
 import { clearTokenCookie } from "@/lib/auth";
 

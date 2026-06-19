@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 
 export function success(
-  data: unknown,
+  data: any,
   status = 200,
   headers?: Record<string, string>
 ) {
-  return NextResponse.json(data, { status, headers });
+  const payload = {
+    success: true,
+    data,
+    ...(typeof data === "object" && data !== null ? data : {})
+  };
+  return NextResponse.json(payload, { status, headers });
 }
 
 export function error(message: string, status = 400) {

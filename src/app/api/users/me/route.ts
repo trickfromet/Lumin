@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
@@ -110,6 +110,7 @@ export async function PATCH(request: NextRequest) {
       bio: updated.bio,
       birthday: updated.birthday,
       status: updated.status,
+      zodiac: updated.birthday ? getWesternZodiac(updated.birthday) : null,
     },
   });
 }

@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { generateNickname } from "@/lib/nickname";
@@ -60,11 +60,11 @@ export async function POST(request: NextRequest) {
   // Check duplicates
   if (phone) {
     const existing = await prisma.user.findUnique({ where: { phone } });
-    if (existing) return error("该手机号已注册");
+    if (existing) return error("该手机号已注册", 409);
   }
   if (email) {
     const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) return error("该邮箱已注册");
+    if (existing) return error("该邮箱已注册", 409);
   }
 
   const passwordHash = await hashPassword(password);

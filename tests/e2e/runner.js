@@ -446,6 +446,20 @@ class Assertion {
     );
   }
 
+  toBeGreaterThanOrEqual(expected) {
+    this._check(
+      this.actual >= expected,
+      `Expected ${this.actual} to be greater than or equal to ${expected}`
+    );
+  }
+
+  toBeLessThanOrEqual(expected) {
+    this._check(
+      this.actual <= expected,
+      `Expected ${this.actual} to be less than or equal to ${expected}`
+    );
+  }
+
   toBeDefined() {
     this._check(
       this.actual !== undefined,
@@ -601,7 +615,12 @@ function disableEdgeRuntime() {
     const apiDir = path.join(__dirname, '../../src/app/api');
     getRouteFiles(apiDir);
     
-    console.log(`Found ${routeFiles.length} route files. Temporarily disabling Edge runtime...`);
+    const layoutFile = path.join(__dirname, '../../src/app/layout.tsx');
+    if (fs.existsSync(layoutFile)) {
+      routeFiles.push(layoutFile);
+    }
+    
+    console.log(`Found ${routeFiles.length} files. Temporarily disabling Edge runtime...`);
     for (const file of routeFiles) {
       const content = fs.readFileSync(file, 'utf8');
       if (content.includes('export const runtime = "edge";')) {
@@ -657,6 +676,23 @@ async function main() {
   killPort3000();
   disableEdgeRuntime();
 
+  try {
+    const nextDir = path.join(__dirname, '../../.next');
+    if (fs.existsSync(nextDir)) {
+      console.log('Cleaning Next.js cache (.next)...');
+      fs.rmSync(nextDir, { recursive: true, force: true });
+    }
+  } catch (err) {
+    console.error('Failed to clean .next cache:', err);
+  }
+
+  try {
+    console.log('Cleaning database...');
+    execSync('node scripts/db-clean.js', { stdio: 'inherit' });
+  } catch (err) {
+    console.error('Failed to clean database:', err);
+  }
+
   let devServerProcess = null;
 
   try {
@@ -666,7 +702,7 @@ async function main() {
       
       const server = spawn('npm', ['run', 'dev'], {
         shell: true,
-        env: { ...process.env, PORT: '3000' }
+        env: { ...process.env, PORT: '3000', LUMIN_TEST: 'true' }
       });
 
       server.stdout.on('data', (data) => {

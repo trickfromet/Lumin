@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, signToken, setTokenCookie } from "@/lib/auth";
@@ -31,12 +31,12 @@ export async function POST(request: NextRequest) {
   });
 
   if (!user) {
-    return error("账号或密码错误");
+    return error("账号或密码错误", 401);
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
-    return error("账号或密码错误");
+    return error("账号或密码错误", 401);
   }
 
   if (user.isBanned) {

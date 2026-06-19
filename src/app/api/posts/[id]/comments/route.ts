@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getUserFromRequest, getIpFromRequest } from "@/lib/auth";
@@ -86,7 +86,7 @@ export async function POST(
         return error("您的设备已被禁止访问服务", 403);
       }
       if (!guest.nickname) {
-        commenterNickname = generateNickname();
+        commenterNickname = "游客" + generateNickname();
         await prisma.guest.update({
           where: { ip },
           data: { nickname: commenterNickname },
@@ -95,7 +95,7 @@ export async function POST(
         commenterNickname = guest.nickname;
       }
     } else {
-      commenterNickname = generateNickname();
+      commenterNickname = "游客" + generateNickname();
       await prisma.guest.create({
         data: { ip, postCount: 0, nickname: commenterNickname },
       });
@@ -125,11 +125,11 @@ export async function POST(
     return error("帖子不存在", 404);
   }
 
-  if (!post.allowComments) {
+  if (post.allowComments === false) {
     return error("该帖子已关闭评论功能", 403);
   }
 
-  if (!post.allowStrangerComments && !user) {
+  if (post.allowStrangerComments === false && !user) {
     return error("该帖子仅允许注册用户评论", 403);
   }
 
@@ -138,6 +138,10 @@ export async function POST(
 
   if (!content || typeof content !== "string" || content.trim().length === 0) {
     return error("评论内容不能为空");
+  }
+
+  if (content.length > 1000) {
+    return error("评论内容不能超过 1000 字", 400);
   }
 
   // Content moderation

@@ -65,13 +65,12 @@ class AudioManager {
   private convolver: ConvolverNode | null = null;
 
   private ambientIntervals: number[] = [];
-  /** 根据 ID 获取确定性的音阶频率 */
-  private getFrequency(postId: number | string | undefined, themeIdx: number): number {
+  private getFrequency(postId: any, themeIdx: number): number {
     const scale = this.SCALES[themeIdx as keyof typeof this.SCALES] || this.SCALES[1];
     if (postId === undefined) return scale[Math.floor(Math.random() * scale.length)];
     const idNum = typeof postId === 'string' ? 
       postId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 
-      postId;
+      Number(postId);
     return scale[idNum % scale.length];
   }
 
@@ -103,7 +102,7 @@ class AudioManager {
     }
     return buffer;
   }
-  private async loadAudioBuffer(url: string): Promise<AudioBuffer | null> {
+  private async loadAudioBuffer(url: string): Promise<any> {
     if (!this.ctx) return null;
     try {
       console.log(`[AudioManager] Fetching audio from: ${url}`);
@@ -494,31 +493,34 @@ class AudioManager {
       this.campfireCrackleSrc.connect(crackleFilter);
       this.campfireCrackleSrc.start();
 
-      // 3. 随机柴火爆裂声 (Random pops, 5-15s)
+      // 3. 随机柴火爆裂声 (Subtle crisp snaps, not thumping)
       const playPop = () => {
         if (this.isMuted || this.themeIdx !== 2 || !this.ctx) return;
-        const popOsc = this.ctx.createOscillator();
+        
+        const now = this.ctx.currentTime;
+        const popSrc = this.ctx.createBufferSource();
+        // 0.02 - 0.04s short burst
+        const duration = 0.02 + Math.random() * 0.02;
+        popSrc.buffer = this.createNoiseBuffer(this.ctx, duration);
+
+        const popFilter = this.ctx.createBiquadFilter();
+        popFilter.type = "bandpass";
+        // High frequency wood snap: 2000Hz - 4500Hz
+        popFilter.frequency.setValueAtTime(2000 + Math.random() * 2500, now);
+        popFilter.Q.setValueAtTime(8.0, now);
+
         const popGain = this.ctx.createGain();
-        popOsc.type = "triangle";
-        popOsc.frequency.setValueAtTime(
-          200 + Math.random() * 400,
-          this.ctx.currentTime,
-        );
-        popOsc.frequency.exponentialRampToValueAtTime(
-          50,
-          this.ctx.currentTime + 0.15,
-        );
+        // Lower volume (0.04 - 0.09) for realistic, cozy background snaps
+        popGain.gain.setValueAtTime(0.04 + Math.random() * 0.05, now);
+        popGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
 
-        popGain.gain.setValueAtTime(this.AMBIENT_CONFIG.campfirePopVolume, this.ctx.currentTime);
-        popGain.gain.exponentialRampToValueAtTime(
-          0.001,
-          this.ctx.currentTime + 0.25,
-        );
+        popSrc.connect(popFilter);
+        popFilter.connect(popGain);
+        popGain.connect(this.convolver!); // Soft space reflection
+        popGain.connect(this.ambientGain);
 
-        popOsc.connect(popGain);
-        popGain.connect(this.convolver!);
-        popOsc.start();
-        popOsc.stop(this.ctx.currentTime + 0.25);
+        popSrc.start(now);
+        popSrc.stop(now + duration + 0.05);
 
         const nextInterval = this.AMBIENT_CONFIG.campfirePopMinInterval + Math.random() * (this.AMBIENT_CONFIG.campfirePopMaxInterval - this.AMBIENT_CONFIG.campfirePopMinInterval);
         this.ambientIntervals.push(
@@ -531,7 +533,7 @@ class AudioManager {
 
   // ── 交互音效 ──
 
-  playHover(postId?: number | string) {
+  playHover(postId = undefined) {
     this.init();
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
@@ -551,56 +553,60 @@ class AudioManager {
       osc.start();
       osc.stop(now + 0.5);
     } else if (this.themeIdx === 2) {
-      // 篝火悬浮：温润木铎与火星爆裂 (Woody Pluck & Spark)
-      // 1. 模拟木头敲击共鸣体 (Wood knock body)
+      // 篝火悬浮：黄昏丛林风声与温暖声学和弦 (Jungle at Dusk - Breeze & Warm Triad)
+      // 1. 温暖的黄昏和弦 (Warm major triad chord: root + major 3rd + fifth)
       const osc1 = this.ctx.createOscillator();
       const osc2 = this.ctx.createOscillator();
-      const gKnock = this.ctx.createGain();
+      const osc3 = this.ctx.createOscillator();
+      const gChord = this.ctx.createGain();
 
-      osc1.type = "triangle";
+      osc1.type = "sine";
       osc2.type = "sine";
+      osc3.type = "sine";
 
-      // 温暖和谐音程：根音 + 五度音 (Perfect fifth chord for depth)
       osc1.frequency.setValueAtTime(freq, now);
-      osc2.frequency.setValueAtTime(freq * 1.5, now);
+      osc2.frequency.setValueAtTime(freq * 1.25, now); // major 3rd (warm, harmonious)
+      osc3.frequency.setValueAtTime(freq * 1.5, now);  // perfect 5th (open, peaceful)
 
-      // 击打瞬态扫频：在极其短暂的时间内快速下滑频率，制造木质“咚”的击打颗粒感
-      osc1.frequency.exponentialRampToValueAtTime(freq * 0.7, now + 0.08);
-      osc2.frequency.exponentialRampToValueAtTime(freq * 1.0, now + 0.08);
+      gChord.gain.setValueAtTime(0, now);
+      gChord.gain.linearRampToValueAtTime(0.03, now + 0.05); // 50ms soft attack to simulate a gentle pluck
+      gChord.gain.exponentialRampToValueAtTime(0.001, now + 1.2); // 1.2s long, spacious decay
 
-      gKnock.gain.setValueAtTime(0.09, now);
-      gKnock.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
-
-      osc1.connect(gKnock);
-      osc2.connect(gKnock);
-      gKnock.connect(this.convolver!);
-      gKnock.connect(this.masterGain);
+      osc1.connect(gChord);
+      osc2.connect(gChord);
+      osc3.connect(gChord);
+      gChord.connect(this.convolver!); // Send to convolver reverb for deep forest space reflection
+      gChord.connect(this.masterGain);
 
       osc1.start(now);
       osc2.start(now);
-      osc1.stop(now + 0.35);
-      osc2.stop(now + 0.35);
+      osc3.start(now);
+      osc1.stop(now + 1.3);
+      osc2.stop(now + 1.3);
+      osc3.stop(now + 1.3);
 
-      // 2. 极其细微的火星爆开声 (Spark Pop transient)
-      // 用带通滤波的高频白噪瞬间爆开，模拟柴火微弱的噼啪摩擦声
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = this.createNoiseBuffer(this.ctx, 0.05); // 0.05秒超短噪声
-      const noiseFilter = this.ctx.createBiquadFilter();
-      noiseFilter.type = "bandpass";
-      noiseFilter.frequency.setValueAtTime(6500, now); // 高频清脆声
-      noiseFilter.Q.setValueAtTime(4.0, now); // 高 Q 值过滤为类正弦金属感 ticks
+      // 2. 黄昏晚风拂叶声 (Soft evening breeze rustle)
+      const breeze = this.ctx.createBufferSource();
+      const breezeDuration = 0.6; // 600ms
+      breeze.buffer = this.createNoiseBuffer(this.ctx, breezeDuration);
 
-      const gNoise = this.ctx.createGain();
-      gNoise.gain.setValueAtTime(0.035, now);
-      gNoise.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      const breezeFilter = this.ctx.createBiquadFilter();
+      breezeFilter.type = "bandpass";
+      breezeFilter.frequency.setValueAtTime(1500, now); // soft mid-high forest frequency
+      breezeFilter.Q.setValueAtTime(1.0, now); // wide band for a soft whisper
 
-      noise.connect(noiseFilter);
-      noiseFilter.connect(gNoise);
-      gNoise.connect(this.convolver!);
-      gNoise.connect(this.masterGain);
+      const gBreeze = this.ctx.createGain();
+      gBreeze.gain.setValueAtTime(0, now);
+      gBreeze.gain.linearRampToValueAtTime(0.015, now + 0.15); // slow swell like wind rising
+      gBreeze.gain.exponentialRampToValueAtTime(0.001, now + breezeDuration);
 
-      noise.start(now);
-      noise.stop(now + 0.05);
+      breeze.connect(breezeFilter);
+      breezeFilter.connect(gBreeze);
+      gBreeze.connect(this.convolver!); // wash in reverb
+      gBreeze.connect(this.masterGain);
+
+      breeze.start(now);
+      breeze.stop(now + breezeDuration);
     } else {
       // 水面悬浮：圆润水滴音
       const osc = this.ctx.createOscillator();
@@ -617,7 +623,7 @@ class AudioManager {
     }
   }
 
-  playClick(postId?: number | string) {
+  playClick(postId = undefined) {
     this.init();
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;

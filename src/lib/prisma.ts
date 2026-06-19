@@ -14,8 +14,26 @@ function getPrismaInstance(): PrismaClient {
   const url = process.env.TURSO_DATABASE_URL ?? "file:./prisma/dev.db";
   const authToken = process.env.TURSO_AUTH_TOKEN;
 
-  const adapter = new PrismaLibSql({ url, authToken });
-  const client = new PrismaClient({ adapter });
+  let client: PrismaClient;
+  if (url.startsWith("file:")) {
+    // Local SQLite database files require native filesystem bindings which are not supported in Edge runtimes.
+    const isEdge = typeof (globalThis as any).EdgeRuntime === "string" || process.env.NEXT_RUNTIME === "edge";
+    if (isEdge) {
+      throw new Error(
+        `[Prisma Configuration Error] Local SQLite file database ("${url}") is not supported under the Next.js Edge Runtime. ` +
+        `Please comment out/remove the Edge runtime configuration (e.g. "export const runtime = 'edge';") from layout.tsx or this route, ` +
+        `or configure a remote Turso database URL (e.g. "libsql://...") to run on Edge.`
+      );
+    }
+    client = new PrismaClient({
+      datasources: {
+        db: { url }
+      }
+    });
+  } else {
+    const adapter = new PrismaLibSql({ url, authToken });
+    client = new PrismaClient({ adapter });
+  }
 
   if (process.env.NODE_ENV !== "production") {
     globalForPrisma.prisma = client;

@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import {
@@ -89,8 +89,8 @@ export async function GET(
       metooTier: getMeTooTier(post._count.metoos),
       commentCount: post._count.comments,
       userHasMetoed,
-      allowComments: post.allowComments,
-      allowStrangerComments: post.allowStrangerComments,
+      allowComments: post.allowComments !== false,
+      allowStrangerComments: post.allowStrangerComments !== false,
     },
   });
 }

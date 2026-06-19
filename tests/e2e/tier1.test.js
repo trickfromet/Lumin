@@ -193,7 +193,7 @@ describe('F4: Empathy ("Me Too") System & Tiers', () => {
   test('F4-02: Remove/toggle Me Too reaction', async () => {
     const agent = new TestAgent();
     // Toggle off
-    const res = await agent.post(`/api/posts/${postId}/metoo`);
+    const res = await agent.delete(`/api/posts/${postId}/metoo`);
     expect(res.status).toBe(200);
   });
 
@@ -547,7 +547,7 @@ describe('F9: User Blocking System', () => {
 
   test('F9-04: Unblock user allows posts to be visible again', async () => {
     // Unblock B
-    await agentA.post(`/api/users/${userBId}/block`); // Toggle block off
+    await agentA.delete(`/api/users/${userBId}/block`); // Toggle block off
     const res = await agentA.get('/api/posts');
     const posts = res.json.data.posts;
     const foundBPost = posts.find(p => p.id === postBId);

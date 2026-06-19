@@ -1,4 +1,4 @@
-export const runtime = "edge";
+// export const runtime = "edge";
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, AuthError } from "@/lib/auth";
@@ -32,7 +32,7 @@ export async function POST(
     await prisma.collection.create({
       data: { userId: user.id, postId: postIdNum },
     });
-    return success({ message: "已收藏" });
+    return success({ message: "已收藏" }, 201);
   } catch {
     return error("已经收藏过了", 409);
   }

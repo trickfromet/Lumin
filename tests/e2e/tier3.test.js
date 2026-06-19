@@ -271,6 +271,7 @@ describe('T3: Cross-Feature Integration Tests', () => {
 
   test('T3-30: Notification panel UI elements', async () => {
     const agent = new TestAgent();
+    await agent.post('/api/auth/login', { phoneOrEmail: emailA, password: 'Password123!' });
     const res = await agent.get('/');
     expect(res.body).toContain('notif');
   });
