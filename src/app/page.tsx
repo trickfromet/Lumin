@@ -108,10 +108,289 @@ const PRESET_THEME_COLORS = [
   "#98c1d9", // 天空蓝
 ];
 
+declare global {
+  interface Window {
+    nebulaBgDimFactor?: number;
+  }
+}
+
+interface CanvasEffect {
+  update(now: number): boolean;
+  draw(ctx: CanvasRenderingContext2D): void;
+}
+
+class NebulaBreathingEffect implements CanvasEffect {
+  x: number;
+  y: number;
+  startTime: number;
+  duration: number;
+  radius: number;
+  opacity: number;
+  maxRadius: number;
+  baseOpacity: number;
+  colorCore: string;
+  colorEdge: string;
+
+  constructor(
+    x: number,
+    y: number,
+    options?: { maxRadius?: number; duration?: number; baseOpacity?: number; colorCore?: string; colorEdge?: string }
+  ) {
+    this.x = x;
+    this.y = y;
+    this.startTime = performance.now();
+    this.duration = options?.duration ?? 1000;
+    this.maxRadius = options?.maxRadius ?? 120;
+    this.baseOpacity = options?.baseOpacity ?? 0.15;
+    this.radius = 40;
+    this.opacity = this.baseOpacity;
+    this.colorCore = options?.colorCore ?? 'rgba(29, 78, 216, ';
+    this.colorEdge = options?.colorEdge ?? 'rgba(96, 165, 250, ';
+    window.nebulaBgDimFactor = 0.72;
+  }
+
+  update(now: number): boolean {
+    const elapsed = now - this.startTime;
+    if (elapsed >= this.duration) {
+      window.nebulaBgDimFactor = 1.0; // 特效结束，恢复背景亮度
+      return false;
+    }
+
+    const progress = elapsed / this.duration;
+    
+    // 缓动函数：EaseOutQuad (使膨胀过程先快后慢，更显灵动)
+    const progressEase = progress * (2 - progress);
+    
+    // 核心物理参数更新
+    this.radius = 40 + (this.maxRadius - 40) * progressEase; // 40px 逐渐膨胀至 maxRadius
+    this.opacity = this.baseOpacity * (1 - progress);          // 透明度逐渐淡出至 0
+
+    // 背景亮度恢复机制：从 0.72 渐变回 1.0
+    if (window.nebulaBgDimFactor !== undefined && window.nebulaBgDimFactor < 1.0) {
+      window.nebulaBgDimFactor = 0.72 + (1.0 - 0.72) * progress;
+    }
+
+    return true;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    // 使用 screen 混合模式，使暗色调在黑暗背景中自然提亮呈微光感
+    ctx.globalCompositeOperation = 'screen';
+
+    // 创建高斯羽化效果的径向渐变
+    const grad = ctx.createRadialGradient(
+      this.x, this.y, 10, 
+      this.x, this.y, Math.max(11, this.radius)
+    );
+    grad.addColorStop(0, this.colorCore + this.opacity + ")");
+    grad.addColorStop(0.5, this.colorEdge + (this.opacity * 0.4) + ")");
+    grad.addColorStop(1, 'transparent');
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, Math.max(1, this.radius), 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+class SupernovaSparkle implements CanvasEffect {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  color: string;
+  opacity: number;
+  decay: number;
+  startTime: number;
+  duration: number;
+
+  constructor(x: number, y: number, color: number[]) {
+    this.x = x;
+    this.y = y;
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 0.5 + Math.random() * 3.5;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.r = 1.0 + Math.random() * 2.0;
+    this.opacity = 0.8 + Math.random() * 0.2;
+    this.decay = 0.015 + Math.random() * 0.02;
+    this.color = `rgba(${color[0] || 96}, ${color[1] || 165}, ${color[2] || 250}, `;
+    this.startTime = performance.now();
+    this.duration = 600 + Math.random() * 600;
+  }
+
+  update(now: number): boolean {
+    const elapsed = now - this.startTime;
+    if (elapsed >= this.duration || this.opacity <= 0) {
+      return false;
+    }
+    this.x += this.vx;
+    this.y += this.vy;
+    this.vx *= 0.96;
+    this.vy *= 0.96;
+    const progress = elapsed / this.duration;
+    this.opacity = 1.0 - progress;
+    return true;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    
+    const grad = ctx.createRadialGradient(
+      this.x, this.y, 0,
+      this.x, this.y, this.r * 3.5
+    );
+    grad.addColorStop(0, this.color + this.opacity + ")");
+    grad.addColorStop(0.5, this.color + (this.opacity * 0.3) + ")");
+    grad.addColorStop(1, "transparent");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r * 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity * 0.95})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
+class WarpSpeedStreak implements CanvasEffect {
+  angle: number;
+  speed: number;
+  len: number;
+  dist: number;
+  maxDist: number;
+  opacity: number;
+  color: string;
+  cx: number;
+  cy: number;
+  startTime: number;
+  duration: number;
+
+  constructor(cx: number, cy: number, color: number[]) {
+    this.cx = cx;
+    this.cy = cy;
+    this.angle = Math.random() * Math.PI * 2;
+    this.speed = 3.0 + Math.random() * 6.0;
+    this.len = 15 + Math.random() * 25;
+    this.dist = 10 + Math.random() * 50;
+    this.maxDist = Math.max(cx, cy) * 1.5;
+    this.opacity = 0;
+    this.color = `rgba(${color[0]}, ${color[1]}, ${color[2]}, `;
+    this.startTime = performance.now();
+    this.duration = 1800;
+  }
+
+  update(now: number): boolean {
+    const elapsed = now - this.startTime;
+    if (elapsed >= this.duration || this.dist >= this.maxDist) {
+      return false;
+    }
+    this.dist += this.speed;
+    this.speed *= 1.03; // slowly accelerate
+    
+    // Fade in and out
+    const progress = this.dist / this.maxDist;
+    if (progress < 0.15) {
+      this.opacity = progress / 0.15;
+    } else {
+      this.opacity = 1.0 - (progress - 0.15) / 0.85;
+    }
+    this.opacity = Math.max(0, Math.min(this.opacity * 0.35, 0.35));
+    return true;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    
+    const dx = Math.cos(this.angle);
+    const dy = Math.sin(this.angle);
+    const x1 = this.cx + dx * this.dist;
+    const y1 = this.cy + dy * this.dist;
+    const x2 = this.cx + dx * (this.dist + this.len);
+    const y2 = this.cy + dy * (this.dist + this.len);
+
+    const grad = ctx.createLinearGradient(x1, y1, x2, y2);
+    grad.addColorStop(0, this.color + "0)");
+    grad.addColorStop(0.5, this.color + this.opacity + ")");
+    grad.addColorStop(1, this.color + "0)");
+
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 0.8 + Math.random() * 1.0;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+class CosmicWhisperText implements CanvasEffect {
+  x: number;
+  y: number;
+  text: string;
+  opacity: number;
+  scale: number;
+  startTime: number;
+  duration: number;
+  vx: number;
+  vy: number;
+
+  constructor(x: number, y: number, text: string) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.startTime = performance.now();
+    this.duration = 1800;
+    this.opacity = 0;
+    this.scale = 0.9 + Math.random() * 0.25;
+    this.vx = (Math.random() - 0.5) * 0.3;
+    this.vy = -0.15 - Math.random() * 0.3;
+  }
+
+  update(now: number): boolean {
+    const elapsed = now - this.startTime;
+    if (elapsed >= this.duration) {
+      return false;
+    }
+    this.x += this.vx;
+    this.y += this.vy;
+    
+    const progress = elapsed / this.duration;
+    if (progress < 0.25) {
+      this.opacity = (progress / 0.25) * 0.5;
+    } else {
+      this.opacity = 0.5 * (1.0 - (progress - 0.25) / 0.75);
+    }
+    return true;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.font = `italic ${Math.round(14 * this.scale)}px "Outfit", "PingFang SC", sans-serif`;
+    ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+    ctx.textAlign = 'center';
+    ctx.fillText(this.text, this.x, this.y);
+    ctx.restore();
+  }
+}
+
 const ENABLE_INVITE_CODE = false;
 
 export default function Home() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const effectCanvasRef = useRef<HTMLCanvasElement>(null);
   const appRef = useRef<HTMLDivElement>(null);
   const animRef = useRef<number>(0);
 
@@ -354,6 +633,8 @@ export default function Home() {
     explorerCurrentRot: 0,
     isTransitioning: false,
     transitionTarget: null as { x: number; y: number } | null,
+    zoom: 1.0,
+    targetZoom: 1.0,
     time: 0,
     lastFrame: 0,
     greetingDone: false,
@@ -373,10 +654,15 @@ export default function Home() {
     bgStars: [] as ReturnType<typeof buildBgStars>,
     waterRipples: [] as ReturnType<typeof buildWaterRipples>,
     labelEls: {} as Record<string, HTMLDivElement>,
+    activeEffects: [] as CanvasEffect[],
+    nebulaBgDimFactor: 1.0,
+    transitionStartTime: 0,
+    transitionCategoryName: "",
+    whispersSpawned: [false, false, false] as boolean[],
   });
 
   // ── 构建函数 ──
-  function buildBgStars(count = 5000) {
+  function buildBgStars(count = 800) {
     const stars: {
       xPct: number;
       yPct: number;
@@ -607,7 +893,7 @@ export default function Home() {
     const st = stateRef.current;
     st.isEnglishMode = initialEnglish;
     st.bgStars = buildBgStars(
-      typeof window !== "undefined" && window.innerWidth <= 768 ? 1500 : 5000,
+      typeof window !== "undefined" && window.innerWidth <= 768 ? 300 : 800,
     );
     st.waterRipples = buildWaterRipples();
     st.lastFrame = performance.now();
@@ -716,6 +1002,7 @@ export default function Home() {
     const st = stateRef.current;
     function updateCanvasSize() {
       const canvas = canvasRef.current;
+      const effectCanvas = effectCanvasRef.current;
       if (!canvas) return;
       const W = window.innerWidth;
       const H = window.innerHeight;
@@ -734,6 +1021,15 @@ export default function Home() {
       canvas.style.height = st.H + "px";
       const ctx = canvas.getContext("2d");
       if (ctx) ctx.setTransform(st.dpr, 0, 0, st.dpr, 0, 0);
+
+      if (effectCanvas) {
+        effectCanvas.width = st.W * st.dpr;
+        effectCanvas.height = st.H * st.dpr;
+        effectCanvas.style.width = st.W + "px";
+        effectCanvas.style.height = st.H + "px";
+        const eCtx = effectCanvas.getContext("2d");
+        if (eCtx) eCtx.setTransform(st.dpr, 0, 0, st.dpr, 0, 0);
+      }
     }
     function positionAll() {
       const st = stateRef.current;
@@ -909,12 +1205,18 @@ export default function Home() {
     };
   }, [startIdleTimer]);
 
+  useEffect(() => {
+    window.nebulaBgDimFactor = 1.0;
+  }, []);
+
   // ── 主绘制循环 ──
   useEffect(() => {
     const canvas = canvasRef.current;
+    const effectCanvas = effectCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const eCtx = effectCanvas ? effectCanvas.getContext("2d") : null;
 
     function drawLanternPath(
       c: CanvasRenderingContext2D,
@@ -936,7 +1238,13 @@ export default function Home() {
       const dt = Math.min((now - st.lastFrame) / 1000, 0.05);
       st.lastFrame = now;
       st.time += dt;
+      st.zoom = st.zoom || 1.0;
+      st.targetZoom = st.targetZoom || 1.0;
+      st.zoom += (st.targetZoom - st.zoom) * dt * 1.15;
       if (!ctx) return;
+      if (eCtx) {
+        eCtx.clearRect(0, 0, st.W, st.H);
+      }
 
       const targetSpace = st.themeIdx === 0 ? 1 : 0;
       const targetWater = st.themeIdx === 1 ? 1 : 0;
@@ -957,8 +1265,8 @@ export default function Home() {
         targetExplorerX = st.transitionTarget.x - st.W / 2;
         targetExplorerY = st.transitionTarget.y - st.H / 2;
         targetExplorerRot = 0;
-        st.explorerCurrentX += (targetExplorerX - st.explorerCurrentX) * 0.015; // 调大系数（从0.008调至0.055），让镜头在大约 0.8s 内快速定位至点击的树洞中心
-        st.explorerCurrentY += (targetExplorerY - st.explorerCurrentY) * 0.015;
+        st.explorerCurrentX += (targetExplorerX - st.explorerCurrentX) * 0.009; // 减慢定位速度以配合放慢的过渡
+        st.explorerCurrentY += (targetExplorerY - st.explorerCurrentY) * 0.009;
         st.explorerCurrentRot +=
           (targetExplorerRot - st.explorerCurrentRot) * 0.06;
       } else {
@@ -1021,6 +1329,21 @@ export default function Home() {
         ),
       ];
 
+      ctx.save();
+      const dimFactor = typeof window !== "undefined" && window.nebulaBgDimFactor !== undefined ? window.nebulaBgDimFactor : 1.0;
+      ctx.globalAlpha = dimFactor;
+
+      // 用 CSS blur filter 代替极其缓慢的 ctx.filter，实现完全由 GPU 合成器加速的高性能背景模糊
+      if (canvas) {
+        if (st.isTransitioning && st.transitionTarget && st.themeIdx !== 1) {
+          const zoomProgress = Math.max(0, Math.min(1, (st.zoom - 1.0) / 2.5));
+          const blurRadius = zoomProgress * 6.0; // 最大 6px 模糊
+          canvas.style.filter = blurRadius > 0.1 ? `blur(${blurRadius.toFixed(1)}px)` : "none";
+        } else {
+          canvas.style.filter = "none";
+        }
+      }
+
       const bgGrad = ctx.createRadialGradient(
         st.W * 0.5,
         st.H * 0.4,
@@ -1058,6 +1381,15 @@ export default function Home() {
         });
       }
 
+      ctx.save();
+      if (st.zoom > 1.001 && st.transitionTarget) {
+        const cx = st.transitionTarget.x;
+        const cy = st.transitionTarget.y;
+        ctx.translate(cx, cy);
+        ctx.scale(st.zoom, st.zoom);
+        ctx.translate(-cx, -cy);
+      }
+
       // 背景星星（深色主题）
       if (st.spaceT > 0) {
         const darkAlphaMul = st.spaceT;
@@ -1067,7 +1399,7 @@ export default function Home() {
           const twinkle = Math.sin(st.time * s.twinkleSpeed + s.twinklePhase);
           const alpha =
             s.baseAlpha * Math.min(1, 0.8 + twinkle * 0.3) * darkAlphaMul;
-          ctx.globalAlpha = Math.max(0, alpha);
+          ctx.globalAlpha = Math.max(0, alpha) * dimFactor;
           ctx.fillStyle =
             s.warmth > 0.7
               ? "rgba(240,225,185,1)"
@@ -1078,7 +1410,7 @@ export default function Home() {
           ctx.arc(s.x + px, s.y + py, s.r, 0, Math.PI * 2);
           ctx.fill();
         });
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha = dimFactor;
       }
 
       // 星群淡入
@@ -1188,7 +1520,7 @@ export default function Home() {
             const breathe = n.currentGlow > 0.5
               ? 0.95 // 悬停呼吸稳定
               : 0.7 + 0.3 * breatheSlow; // 默认大幅摆动
-            ctx.globalAlpha = baseAlpha * breathe;
+            ctx.globalAlpha = baseAlpha * breathe * dimFactor;
             const glowR = h * (1.0 + activity * 1.8);
             const gGlow = ctx.createRadialGradient(
               0,
@@ -1383,6 +1715,58 @@ export default function Home() {
         }
       });
 
+      ctx.restore(); // 对应 line 1066 的 zoom ctx.save()
+
+      ctx.restore(); // 对应 line 1028 的 dimming ctx.save()
+
+      // 连续生成时空隧道光束与星空低语文字（非水面主题）
+      if (st.isTransitioning && st.transitionTarget && st.themeIdx !== 1) {
+        const transElapsed = now - st.transitionStartTime;
+        
+        // 生成时空隧道光束 (Warp streaks)
+        if (Math.random() < 0.4) {
+          const streakColor = st.themeIdx === 0 ? [96, 165, 250] : [242, 109, 33];
+          st.activeEffects.push(new WarpSpeedStreak(st.W / 2, st.H / 2, streakColor));
+        }
+
+        // 生成低语文字
+        const nextWhisperIdx = Math.floor(transElapsed / 600);
+        if (nextWhisperIdx >= 0 && nextWhisperIdx < 3) {
+          if (!st.whispersSpawned) st.whispersSpawned = [false, false, false];
+          if (!st.whispersSpawned[nextWhisperIdx]) {
+            st.whispersSpawned[nextWhisperIdx] = true;
+            
+            const wordsZh = ["微光", "共鸣", "尘网", "拾遗", "浮生", "幽壑", "求索", "心弦", "回响", "梦影"];
+            const wordsEn = ["whisper", "resonance", "echo", "stardust", "solitude", "seek", "memory", "drift", "light", "dream"];
+            const pool = st.isEnglishMode ? wordsEn : wordsZh;
+            
+            let text = "";
+            const cName = st.transitionCategoryName || "";
+            if (nextWhisperIdx === 0 && cName) {
+              text = st.isEnglishMode ? (CATEGORY_EN_MAP[cName] || cName) : cName;
+            } else {
+              text = pool[Math.floor(Math.random() * pool.length)];
+            }
+            
+            const wx = st.W / 2 + (Math.random() - 0.5) * st.W * 0.4;
+            const wy = st.H / 2 + (Math.random() - 0.5) * st.H * 0.3;
+            st.activeEffects.push(new CosmicWhisperText(wx, wy, text));
+          }
+        }
+      }
+
+      // B. 更新并绘制星云呼吸特效 (有效果画布则画在效果画布上，保持内容清晰)
+      const activeEffects = st.activeEffects;
+      for (let i = activeEffects.length - 1; i >= 0; i--) {
+        const effect = activeEffects[i];
+        const isAlive = effect.update(now);
+        if (!isAlive) {
+          activeEffects.splice(i, 1);
+        } else {
+          effect.draw(eCtx || ctx);
+        }
+      }
+
       animRef.current = requestAnimationFrame(draw);
     }
 
@@ -1515,6 +1899,7 @@ export default function Home() {
     setSettingsVisible(false);
     stateRef.current.isTransitioning = false;
     stateRef.current.transitionTarget = null;
+    stateRef.current.targetZoom = 1.0;
     // 关闭屏幕后重新开启空闲计时（已进入过树洞则不再弹）
     startIdleTimer();
   }, [readingVisible, startIdleTimer]);
@@ -1571,48 +1956,100 @@ export default function Home() {
           if (Math.hypot(mx - nx, my - ny) < Math.max(30, hitR)) {
             // 触发过渡
             st.isTransitioning = true;
+            st.targetZoom = 3.5;
             audio.playClick(c.id);
             st.transitionTarget = { x: clCenterX, y: clCenterY };
+            st.transitionStartTime = performance.now();
+            st.transitionCategoryName = c.name;
+            st.whispersSpawned = [false, false, false];
 
-            // 水波纹过渡：创建全屏包裹容器 (解决 transform 对 position: fixed 产生的含有块限制 bug)
-            const transitionWrapper = document.createElement("div");
-            transitionWrapper.className = "ripple-transition-wrapper";
-            document.body.appendChild(transitionWrapper);
+            let transitionWrapper: HTMLDivElement | null = null;
 
-            // 创建全屏渐变晕染遮罩 (Watercolor Bloom Mask)
-            const maskBg = document.createElement("div");
-            maskBg.className = "ripple-mask-bg";
-            const baseColor = c.color || [181, 117, 122];
-            // 从点击的中心进行晕染，向外过渡到背景底色（降低不透明度至 0.45 避免过亮）
-            maskBg.style.background = `radial-gradient(circle at ${clCenterX}px ${clCenterY}px, rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, 0.75) 0%, var(--void) 80%)`;
-            transitionWrapper.appendChild(maskBg);
+            // 触发星云呼吸特效 (仅在星空与篝火主题下触发，水面主题使用 DOM 涟漪)
+            const canvas = canvasRef.current;
+            if (canvas) {
+              const rect = canvas.getBoundingClientRect();
+              const rx = mx - rect.left;
+              const ry = my - rect.top;
 
-            // 创建多层涟漪环容器
-            const rippleContainer = document.createElement("div");
-            rippleContainer.className = "ripple-transition";
-            rippleContainer.style.left = clCenterX + "px";
-            rippleContainer.style.top = clCenterY + "px";
-            transitionWrapper.appendChild(rippleContainer);
-
-            const ringCount = 4;
-            const themeColors: [number,number,number][] = st.themeIdx === 0
-              ? [c.color as [number,number,number]]
-              : st.themeIdx === 1
-              ? [[181,117,122], [200,160,150], [160,180,200]]
-              : [[242,109,33], [255,166,0], [200,100,20]];
-
-            for (let i = 0; i < ringCount; i++) {
-              const ring = document.createElement("div");
-              ring.className = "ripple-ring";
-              const color = themeColors[i % themeColors.length];
-              ring.style.borderColor = `rgba(${color[0]},${color[1]},${color[2]},0.6)`;
-              ring.style.animationDelay = `${i * 0.12}s`;
-              rippleContainer.appendChild(ring);
+              if (st.themeIdx === 0) {
+                // 星空主题：添加主辅星云光晕 + 超新星粒子爆发
+                st.activeEffects.push(new NebulaBreathingEffect(rx, ry));
+                st.activeEffects.push(new NebulaBreathingEffect(rx, ry, {
+                  maxRadius: 320,
+                  duration: 1600,
+                  baseOpacity: 0.08
+                }));
+                const particleColor = c.color || [96, 165, 250];
+                for (let i = 0; i < 28; i++) {
+                  st.activeEffects.push(new SupernovaSparkle(rx, ry, particleColor));
+                }
+              } else if (st.themeIdx === 2) {
+                // 篝火主题：添加暖色调火花光晕 + 灰烬粒子爆发
+                st.activeEffects.push(new NebulaBreathingEffect(rx, ry, {
+                  colorCore: 'rgba(242, 109, 33, ',
+                  colorEdge: 'rgba(255, 200, 80, ',
+                  maxRadius: 130
+                }));
+                st.activeEffects.push(new NebulaBreathingEffect(rx, ry, {
+                  colorCore: 'rgba(242, 109, 33, ',
+                  colorEdge: 'rgba(255, 166, 0, ',
+                  maxRadius: 280,
+                  duration: 1400,
+                  baseOpacity: 0.08
+                }));
+                const particleColor = c.color || [242, 109, 33];
+                for (let i = 0; i < 28; i++) {
+                  st.activeEffects.push(new SupernovaSparkle(rx, ry, particleColor));
+                }
+              }
+            } else {
+              if (st.themeIdx === 0) {
+                st.activeEffects.push(new NebulaBreathingEffect(mx, my));
+              } else if (st.themeIdx === 2) {
+                st.activeEffects.push(new NebulaBreathingEffect(mx, my, {
+                  colorCore: 'rgba(242, 109, 33, ',
+                  colorEdge: 'rgba(255, 200, 80, '
+                }));
+              }
             }
 
-            setTimeout(() => {
-              transitionWrapper.remove();
-            }, 5500);
+            // 水面主题 (themeIdx === 1) 独占 HTML 水波纹过渡效果
+            if (st.themeIdx === 1) {
+              transitionWrapper = document.createElement("div");
+              transitionWrapper.className = "ripple-transition-wrapper";
+              document.body.appendChild(transitionWrapper);
+
+              const maskBg = document.createElement("div");
+              maskBg.className = "ripple-mask-bg";
+              const baseColor = c.color || [181, 117, 122];
+              maskBg.style.background = `radial-gradient(circle at ${clCenterX}px ${clCenterY}px, rgba(${baseColor[0]}, ${baseColor[1]}, ${baseColor[2]}, 0.75) 0%, var(--void) 80%)`;
+              transitionWrapper.appendChild(maskBg);
+
+              const rippleContainer = document.createElement("div");
+              rippleContainer.className = "ripple-transition";
+              rippleContainer.style.left = clCenterX + "px";
+              rippleContainer.style.top = clCenterY + "px";
+              transitionWrapper.appendChild(rippleContainer);
+
+              const ringCount = 4;
+              const themeColors: [number, number, number][] = [
+                [181, 117, 122], [200, 160, 150], [160, 180, 200]
+              ];
+
+              for (let i = 0; i < ringCount; i++) {
+                const ring = document.createElement("div");
+                ring.className = "ripple-ring";
+                const color = themeColors[i % themeColors.length];
+                ring.style.borderColor = `rgba(${color[0]},${color[1]},${color[2]},0.6)`;
+                ring.style.animationDelay = `${i * 0.12}s`;
+                rippleContainer.appendChild(ring);
+              }
+
+              setTimeout(() => {
+                transitionWrapper?.remove();
+              }, 5500);
+            }
 
             // 清空缓存 + 加载中
             clearIdleTimer(); // 进入树洞时清除提示
@@ -1699,8 +2136,10 @@ export default function Home() {
             setTimeout(() => {
               closeAllScreens();
               setReadingVisible(true);
-              transitionWrapper.style.opacity = "0";
-              setTimeout(() => transitionWrapper.remove(), 1200); // 1.2s 渐变退场结束后销毁 DOM
+              if (transitionWrapper) {
+                transitionWrapper.style.opacity = "0";
+                setTimeout(() => transitionWrapper.remove(), 1200); // 1.2s 渐变退场结束后销毁 DOM
+              }
             }, 2300);
             return;
           }
@@ -2300,6 +2739,18 @@ export default function Home() {
           style={{ pointerEvents: anyScreenOpen ? "none" : "auto" }}
         >
           <canvas id="mainCanvas" ref={canvasRef} onClick={handleCanvasClick} />
+          <canvas
+            id="effectCanvas"
+            ref={effectCanvasRef}
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              pointerEvents: "none",
+              zIndex: 2,
+            }}
+          />
         </div>
 
         {/* Boat (light theme) */}

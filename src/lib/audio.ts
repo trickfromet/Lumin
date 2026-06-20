@@ -629,44 +629,128 @@ class AudioManager {
     const now = this.ctx.currentTime;
     const freq = this.getFrequency(postId, this.themeIdx);
 
-    if (this.themeIdx === 0) {
-      // 星空进入：高音扫频
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq * 1.5, now);
-      osc.frequency.exponentialRampToValueAtTime(freq, now + 0.8);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.0);
-      osc.connect(gain);
-      gain.connect(this.convolver!);
-      osc.start();
-      osc.stop(now + 1.0);
-    } else if (this.themeIdx === 2) {
-      // 篝火进入：深沉回响
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(freq * 0.5, now);
-      osc.frequency.exponentialRampToValueAtTime(freq * 0.2, now + 0.3);
-      gain.gain.setValueAtTime(0.1, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
-      osc.connect(gain);
-      gain.connect(this.convolver!);
-      osc.start();
-      osc.stop(now + 0.6);
+    if (this.themeIdx === 0 || this.themeIdx === 2) {
+      // 宇宙隧道穿梭：低频深邃的星际穿越膨胀音 + 高频扫频合成器 (Interstellar Warp Swell)
+      const duration = 2.4; // 持续2.4秒，刚好覆盖到开卡片的2.3s
+      const isCampfire = this.themeIdx === 2;
+
+      // 1. 深沉底噪加速/膨胀 (Sub-bass rumble sweep)
+      const subOsc = this.ctx.createOscillator();
+      const subGain = this.ctx.createGain();
+      subOsc.type = isCampfire ? "triangle" : "sine";
+      // 频率从 55Hz 缓慢升到 75Hz/85Hz (空间拉扯感)
+      subOsc.frequency.setValueAtTime(55, now);
+      subOsc.frequency.linearRampToValueAtTime(isCampfire ? 65 : 85, now + duration);
+
+      subGain.gain.setValueAtTime(0, now);
+      subGain.gain.linearRampToValueAtTime(isCampfire ? 0.18 : 0.12, now + 0.5); // 快速起音
+      subGain.gain.setValueAtTime(isCampfire ? 0.18 : 0.12, now + duration - 0.4);
+      subGain.gain.exponentialRampToValueAtTime(0.001, now + duration); // 结尾淡出
+
+      subOsc.connect(subGain);
+      subGain.connect(this.masterGain);
+      subOsc.start(now);
+      subOsc.stop(now + duration + 0.1);
+
+      // 2. 扫频声学滤波器 (High-frequency Resonant BP filter sweep)
+      // 用带通滤波器处理白噪/锯齿波，模拟气流或星云掠过的啸叫声
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = this.createNoiseBuffer(this.ctx, duration);
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = "bandpass";
+      filter.Q.value = isCampfire ? 3.0 : 5.0; // 越小声音越宽，越大谐振越强
+      // 频率从 320Hz 向上扫频
+      filter.frequency.setValueAtTime(320, now);
+      filter.frequency.exponentialRampToValueAtTime(isCampfire ? 900 : 1600, now + duration - 0.3);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0, now);
+      noiseGain.gain.linearRampToValueAtTime(0.07, now + 0.4); // 模拟逐渐加速掠过
+      noiseGain.gain.setValueAtTime(0.07, now + duration - 0.5);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.convolver!); // 通过混响烘托浩瀚感
+      noiseGain.connect(this.masterGain);
+      
+      noise.start(now);
+      noise.stop(now + duration + 0.1);
+
+      // 3. 高空掠过的正弦啸叫 (Space Whistle / Shimmer)
+      const whistleOsc = this.ctx.createOscillator();
+      const whistleGain = this.ctx.createGain();
+      whistleOsc.type = "sine";
+      whistleOsc.frequency.setValueAtTime(freq * 1.5, now);
+      whistleOsc.frequency.exponentialRampToValueAtTime(freq * 0.7, now + duration);
+
+      whistleGain.gain.setValueAtTime(0, now);
+      whistleGain.gain.linearRampToValueAtTime(0.03, now + 0.2);
+      whistleGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      whistleOsc.connect(whistleGain);
+      whistleGain.connect(this.convolver!);
+      whistleGain.connect(this.masterGain);
+
+      whistleOsc.start(now);
+      whistleOsc.stop(now + duration);
     } else {
-      // 水面进入：深层涟漪
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(freq * 0.8, now);
-      gain.gain.setValueAtTime(0.08, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.5);
-      osc.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start();
-      osc.stop(now + 1.5);
+      // 水面进入：连续水滴声 (急促 → 平稳 线性递减)
+      const duration = 2.3;
+      const baseFreq = freq * 0.8;
+      
+      let t = 0;
+      const intervalStart = 0.06; // 起始间隔：60ms (急促)
+      const intervalEnd = 0.45;   // 结束间隔：450ms (平稳)
+      let currentInterval = intervalStart;
+
+      while (t < duration) {
+        const timeOffset = now + t;
+        
+        // 每一个水滴使用独立的振荡器与增益节点
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        
+        osc.type = "sine";
+        // 微微的随机频率偏置，使水滴听起来极其真实、不机械
+        const dripFreq = baseFreq * (0.93 + Math.random() * 0.14);
+        osc.frequency.setValueAtTime(dripFreq, timeOffset);
+        // 水滴特有的向下 pitch 扫频 (模拟水珠落入空洞的声调变化)
+        osc.frequency.exponentialRampToValueAtTime(dripFreq * 0.45, timeOffset + 0.18);
+
+        gain.gain.setValueAtTime(0, timeOffset);
+        gain.gain.linearRampToValueAtTime(0.06, timeOffset + 0.008); // 快速起音
+        gain.gain.exponentialRampToValueAtTime(0.001, timeOffset + 0.18); // 快速衰减
+
+        osc.connect(gain);
+        gain.connect(this.convolver!); // 通过混响获得深水洞穴的回响感
+        gain.connect(this.masterGain);
+        
+        osc.start(timeOffset);
+        osc.stop(timeOffset + 0.22);
+
+        // 递增当前间隔，使得下一次水滴触发时间变长 (水滴下落变平缓)
+        const progress = t / duration;
+        currentInterval = intervalStart + (intervalEnd - intervalStart) * progress;
+        t += currentInterval;
+      }
+
+      // 4. 背景添加一个轻微的大水波涟漪作为底噪包络 (Deep swell ripple)
+      const swellOsc = this.ctx.createOscillator();
+      const swellGain = this.ctx.createGain();
+      swellOsc.type = "sine";
+      swellOsc.frequency.setValueAtTime(baseFreq * 0.5, now);
+      swellOsc.frequency.linearRampToValueAtTime(baseFreq * 0.25, now + duration);
+
+      swellGain.gain.setValueAtTime(0, now);
+      swellGain.gain.linearRampToValueAtTime(0.06, now + 0.3);
+      swellGain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+      swellOsc.connect(swellGain);
+      swellGain.connect(this.masterGain);
+      swellOsc.start(now);
+      swellOsc.stop(now + duration);
     }
   }
 
