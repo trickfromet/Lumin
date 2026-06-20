@@ -1676,7 +1676,7 @@ html.light-theme .screen-close svg {
     margin-top: 60px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     gap: 24px;
 }
 .reading-back,

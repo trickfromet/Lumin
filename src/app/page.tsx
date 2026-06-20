@@ -608,10 +608,11 @@ export default function Home() {
     st.shuffleKey++;
     if (treeholesData.length > 0) {
       const shuffled = [...treeholesData].sort(() => Math.random() - 0.5);
-      const indexByTag = shuffled.reduce<Record<string, number>>(
+      const visible = shuffled.slice(0, 10);
+      const indexByTag = visible.reduce<Record<string, number>>(
         (acc, item, idx) => { acc[item.tag] = idx; return acc; }, {},
       );
-      st.clusters = buildClusters(shuffled, indexByTag, st.shuffleKey, st.isMobile);
+      st.clusters = buildClusters(visible, indexByTag, st.shuffleKey, st.isMobile);
     } else {
       st.clusters = buildClusters([], {}, st.shuffleKey, st.isMobile);
     }
@@ -1079,15 +1080,12 @@ export default function Home() {
         const sorted = [...data].sort(
           (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
         );
-        const indexByTag = sorted.reduce<Record<string, number>>(
-          (acc, item, idx) => {
-            acc[item.tag] = idx;
-            return acc;
-          },
-          {},
-        );
         setTreeholesData(data);
-        st.clusters = buildClusters(data, indexByTag, st.shuffleKey, st.isMobile);
+        const visibleData = sorted.slice(0, 10);
+        const visibleIndexByTag = visibleData.reduce<Record<string, number>>(
+          (acc, item, idx) => { acc[item.tag] = idx; return acc; }, {},
+        );
+        st.clusters = buildClusters(visibleData, visibleIndexByTag, st.shuffleKey, st.isMobile);
         // 在星群构建后创建标签元素
         requestAnimationFrame(() => createLabels(st.clusters));
 
@@ -3145,6 +3143,27 @@ export default function Home() {
             <div className="top-auth">
               {currentUser ? (
                 <>
+                  <button
+                    className="top-auth-btn"
+                    onClick={shuffleTreeholes}
+                    aria-label={t("换一批", "Refresh")}
+                    title={t("换一批树洞", "Shuffle Treeholes")}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      width="16"
+                      height="16"
+                    >
+                      <polyline points="23 4 23 10 17 10" />
+                      <polyline points="1 20 1 14 7 14" />
+                      <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                    </svg>
+                  </button>
                   <button
                     className="top-auth-btn"
                     onClick={() => {
