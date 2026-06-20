@@ -47,6 +47,17 @@ const EMOJI_LIST = [
 ];
 
 const CATEGORY_EN_MAP: Record<string, string> = {
+  // 分类器产出
+  心弦: "Heartstrings",
+  求索: "Quest",
+  尘网: "Dust Net",
+  屋檐: "Eaves",
+  浮生: "Floating Life",
+  幽壑: "Abyss",
+  拾遗: "Found",
+  碎语: "Whispers",
+  长卷: "Scroll",
+  // 兼容旧数据
   情感: "Feelings",
   问答: "Q&A",
   工作: "Work",
@@ -258,37 +269,31 @@ export default function Home() {
   const preloadControllerRef = useRef<AbortController | null>(null);
   const prefetchedPostsRef = useRef<Record<string, { zh: Post[]; en: Post[] }>>({});
 
-  const preloadAllPosts = useCallback((data: TreeHole[]) => {
+  const preloadAllPosts = useCallback((data: TreeHole[], lang: string) => {
     if (data.length === 0) return;
     prefetchedPostsRef.current = {};
+    
+    // 初始化所有标签的空缓存结构
     data.forEach((hole) => {
       prefetchedPostsRef.current[hole.tag] = { zh: [], en: [] };
-      
-      // 预加载中文帖子
-      postsApi
-        .list({ tag: hole.tag, page: 1, language: "zh" })
-        .then((pRes) => {
-          if (pRes.posts && pRes.posts.length > 0) {
-            prefetchedPostsRef.current[hole.tag] = {
-              ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
-              zh: pRes.posts,
-            };
-          }
-        })
-        .catch(() => {});
+    });
 
-      // 预加载英文帖子
-      postsApi
-        .list({ tag: hole.tag, page: 1, language: "en" })
-        .then((pRes) => {
-          if (pRes.posts && pRes.posts.length > 0) {
-            prefetchedPostsRef.current[hole.tag] = {
-              ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
-              en: pRes.posts,
-            };
-          }
-        })
-        .catch(() => {});
+    // 串行依次加载，避免并发请求导致 SQLite/LibSQL 数据库性能瓶颈或死锁
+    let p = Promise.resolve();
+    data.forEach((hole) => {
+      p = p.then(() => {
+        return postsApi
+          .list({ tag: hole.tag, page: 1, language: lang })
+          .then((pRes) => {
+            if (pRes.posts && pRes.posts.length > 0) {
+              prefetchedPostsRef.current[hole.tag] = {
+                ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
+                [lang]: pRes.posts,
+              };
+            }
+          })
+          .catch(() => {});
+      });
     });
   }, []);
 
@@ -594,37 +599,8 @@ export default function Home() {
       .me()
       .then((res) => setCurrentUser(res.user))
       .catch(() => {});
-
-    // 从标签获取树洞数据并构建星群
-    treeholeApi
-      .list({ language: initialEnglish ? "en" : "zh" })
-      .then((res) => {
-        const data = res.treeholes || [];
-        const sorted = [...data].sort(
-          (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
-        );
-        const indexByTag = sorted.reduce<Record<string, number>>(
-          (acc, item, idx) => {
-            acc[item.tag] = idx;
-            return acc;
-          },
-          {},
-        );
-        setTreeholesData(data);
-        st.clusters = buildClusters(data, indexByTag, st.shuffleKey, st.isMobile);
-        // 在星群构建后创建标签元素
-        requestAnimationFrame(() => createLabels(st.clusters));
-
-        // 预加载所有标签下的第一页故事（双语预加载）
-        preloadAllPosts(data);
-      })
-      .catch(() => {
-        setTreeholesData([]);
-        st.clusters = buildClusters([], {}, st.shuffleKey, st.isMobile);
-        requestAnimationFrame(() => createLabels(st.clusters));
-      });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preloadAllPosts]);
+  }, []);
 
   // ── 按时间自动切换主题（仅首次加载，手动切换后停止）──
   useEffect(() => {
@@ -652,13 +628,15 @@ export default function Home() {
       const st = stateRef.current;
       // 保存引用供 shuffleTreeholes 调用
       st._createLabels = createLabels;
-      // 移除旧标签
-      Object.values(st.labelEls).forEach((el) => el.remove());
+      // 移除所有标签 DOM（按 class 查找，确保清除游离节点）
+      mainView.querySelectorAll(".constellation-label").forEach((el) => el.remove());
       st.labelEls = {};
+      // 直接读 DOM class 决定语言，避免 ref 异步同步导致的竞态
+      const isEnglish = document.documentElement.classList.contains("font-english");
       clusters.forEach((c) => {
         const el = document.createElement("div");
         el.className = "constellation-label";
-        el.textContent = tCategory(c.name, st.isEnglishMode);
+        el.textContent = tCategory(c.name, isEnglish);
         mainView.appendChild(el);
         st.labelEls[c.id] = el;
 
@@ -674,6 +652,46 @@ export default function Home() {
     },
     [],
   );
+
+  // ── 根据语言加载树洞和星群 ──
+  useEffect(() => {
+    let active = true;
+    const lang = isEnglishMode ? "en" : "zh";
+    const st = stateRef.current;
+    treeholeApi
+      .list({ language: lang })
+      .then((res) => {
+        if (!active) return;
+        const data = res.treeholes || [];
+        const sorted = [...data].sort(
+          (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
+        );
+        const indexByTag = sorted.reduce<Record<string, number>>(
+          (acc, item, idx) => {
+            acc[item.tag] = idx;
+            return acc;
+          },
+          {},
+        );
+        setTreeholesData(data);
+        st.clusters = buildClusters(data, indexByTag, st.shuffleKey, st.isMobile);
+        // 在星群构建后创建标签元素
+        requestAnimationFrame(() => createLabels(st.clusters));
+
+        // 预加载所有标签下的第一页故事
+        preloadAllPosts(data, lang);
+      })
+      .catch(() => {
+        if (!active) return;
+        setTreeholesData([]);
+        st.clusters = buildClusters([], {}, st.shuffleKey, st.isMobile);
+        requestAnimationFrame(() => createLabels(st.clusters));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isEnglishMode, preloadAllPosts, createLabels]);
 
   // ── 画布大小调整 ──
   useEffect(() => {
@@ -1378,11 +1396,6 @@ export default function Home() {
     const hasEnglish = document.documentElement.classList.contains("font-english");
     const newFont = !hasEnglish;
 
-    // 先立即清除旧标签 DOM，避免 useEffect([isEnglishMode]) 更新旧标签文字造成竞态
-    const st = stateRef.current;
-    Object.values(st.labelEls).forEach((el: HTMLElement) => el.remove());
-    st.labelEls = {};
-
     setIsEnglishMode(newFont);
     document.documentElement.classList.toggle("font-english", newFont);
     document.documentElement.lang = newFont ? "en" : "zh";
@@ -1393,35 +1406,6 @@ export default function Home() {
     // 清空当前单分类流的 cache，防止中英文混杂
     setPostCache([]);
     setCurrentPost(null);
-
-    // 按新语言重新拉取星群标签
-    treeholeApi.list({ language: newFont ? "en" : "zh" }).then((res) => {
-      const data = res.treeholes || [];
-      const sorted = [...data].sort(
-        (a, b) => b.count - a.count || a.tag.localeCompare(b.tag),
-      );
-      const indexByTag = sorted.reduce<Record<string, number>>(
-        (acc, item, idx) => { acc[item.tag] = idx; return acc; },
-        {},
-      );
-      setTreeholesData(data);
-      st.clusters = buildClusters(data, indexByTag, st.shuffleKey, st.isMobile);
-      const mainView = document.getElementById("mainView");
-      if (mainView) {
-        // 防御性清除：防止快速双击+请求乱序导致残留旧标签 DOM
-        Object.values(st.labelEls).forEach((el: HTMLElement) => el.remove());
-        st.labelEls = {};
-        data.forEach((hole, i) => {
-          if (i >= st.clusters.length) return;
-          const c = st.clusters[i];
-          const el = document.createElement("div");
-          el.className = "constellation-label";
-          el.textContent = tCategory(c.name, newFont);
-          mainView.appendChild(el);
-          st.labelEls[c.id] = el;
-        });
-      }
-    }).catch(() => {});
 
     // 终止正在进行的单分类预加载
     if (preloadControllerRef.current) {
@@ -1605,23 +1589,13 @@ export default function Home() {
               setPostCache(others);
               setLoadingPost(false); // 无需 loading 状态
 
-              // 在后台默默刷新缓存 (同时刷新中英文)
-              postsApi.list({ tag: c.tag, page: 1, language: "zh" })
+              // 在后台默默刷新缓存 (仅刷新当前语言)
+              postsApi.list({ tag: c.tag, page: 1, language: targetLang })
                 .then((res) => {
                   if (res.posts && res.posts.length > 0) {
                     prefetchedPostsRef.current[c.tag] = {
                       ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
-                      zh: res.posts,
-                    };
-                  }
-                })
-                .catch(() => {});
-              postsApi.list({ tag: c.tag, page: 1, language: "en" })
-                .then((res) => {
-                  if (res.posts && res.posts.length > 0) {
-                    prefetchedPostsRef.current[c.tag] = {
-                      ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
-                      en: res.posts,
+                      [targetLang]: res.posts,
                     };
                   }
                 })
@@ -1646,6 +1620,11 @@ export default function Home() {
                         return [...prev, ...fresh].slice(0, 5);
                       });
                     }
+                    // 同时填充缓存
+                    prefetchedPostsRef.current[c.tag] = {
+                      ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
+                      [targetLang]: res.posts,
+                    };
                     setTimeout(() => preloadPosts(c.tag, 5), 500);
                   }
                   setLoadingPost(false);
@@ -1653,28 +1632,6 @@ export default function Home() {
                 .catch(() => {
                   setLoadingPost(false);
                 });
-
-              // 同时在后台异步加载中英文以填充缓存
-              postsApi.list({ tag: c.tag, page: 1, language: "zh" })
-                .then((res) => {
-                  if (res.posts && res.posts.length > 0) {
-                    prefetchedPostsRef.current[c.tag] = {
-                      ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
-                      zh: res.posts,
-                    };
-                  }
-                })
-                .catch(() => {});
-              postsApi.list({ tag: c.tag, page: 1, language: "en" })
-                .then((res) => {
-                  if (res.posts && res.posts.length > 0) {
-                    prefetchedPostsRef.current[c.tag] = {
-                      ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
-                      en: res.posts,
-                    };
-                  }
-                })
-                .catch(() => {});
             }
 
             // 在 2.3s 时同时拉起阅读界面并让遮罩淡出，实现交叉淡入淡出 (Cross-fade)

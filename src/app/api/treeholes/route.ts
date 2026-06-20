@@ -7,6 +7,7 @@ import { success } from "@/lib/api-response";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const range = (searchParams.get("range") || "all").toLowerCase();
+  const language = searchParams.get("language");
   const now = Date.now();
   const ranges: Record<string, number> = {
     day: 1,
@@ -15,8 +16,6 @@ export async function GET(request: Request) {
   };
   const days = ranges[range];
   const since = days ? new Date(now - days * 24 * 60 * 60 * 1000) : null;
-  const language = searchParams.get("language");
-
   // 第一步：查出所有可见帖子的 ID（避免在 groupBy 中使用跨表关系过滤，后者在 LibSQL 中可能异常）
   const visibleFilter: Record<string, unknown> = { isHidden: false };
   if (since) visibleFilter.createdAt = { gte: since };

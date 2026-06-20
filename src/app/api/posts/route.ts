@@ -227,6 +227,7 @@ export async function POST(request: NextRequest) {
     }
     const finalTags = [finalTag];
 
+
     const post = await prisma.post.create({
       data: {
         user: user?.id ? { connect: { id: user.id } } : undefined,

@@ -3,6 +3,10 @@ const http = require('http');
 const path = require('path');
 const fs = require('fs');
 
+// Force local database for E2E tests to avoid remote timeouts/latency/stale data
+process.env.TURSO_DATABASE_URL = 'file:./prisma/dev.db';
+process.env.TURSO_AUTH_TOKEN = '';
+
 // Register TS loader for Node compatibility offline
 require.extensions['.ts'] = function (module, filename) {
   let content = fs.readFileSync(filename, 'utf8');
@@ -16,8 +20,11 @@ require.extensions['.ts'] = function (module, filename) {
   // Remove class access modifiers (private, public, protected, readonly)
   content = content.replace(/\b(private|public|protected|readonly)\s+/g, '');
   
+  // Convert optional parameters/properties (e.g. param?: type) to standard format (param: type)
+  content = content.replace(/\?\s*:/g, ':');
+
   // Replace type annotations in properties, variables, and parameters
-  content = content.replace(/:\s*[a-zA-Z_][\w\d_<>\[\]|]*(\s*\|\s*null|\s*\|\s*undefined)?(?=\s*(=|,|\)|;|\{))/g, '');
+  content = content.replace(/:\s*[a-zA-Z_][\w\d_<>\[\]|\s]*(\s*\|\s*null|\s*\|\s*undefined)?(?=\s*(=|,|\)|;|\{))/g, '');
   
   // Remove type assertions like 'as type'
   content = content.replace(/as\s+unknown\s+as\s+\{[^}]*\}/g, '');
@@ -702,7 +709,13 @@ async function main() {
       
       const server = spawn('npm', ['run', 'dev'], {
         shell: true,
-        env: { ...process.env, PORT: '3000', LUMIN_TEST: 'true' }
+        env: {
+          ...process.env,
+          PORT: '3000',
+          LUMIN_TEST: 'true',
+          TURSO_DATABASE_URL: 'file:./prisma/dev.db',
+          TURSO_AUTH_TOKEN: ''
+        }
       });
 
       server.stdout.on('data', (data) => {

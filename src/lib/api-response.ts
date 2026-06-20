@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 
 export function success(
-  data: any,
+  data: unknown,
   status = 200,
   headers?: Record<string, string>
 ) {
   const payload = {
     success: true,
     data,
-    ...(typeof data === "object" && data !== null ? data : {})
+    ...(typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {})
   };
   return NextResponse.json(payload, { status, headers });
 }

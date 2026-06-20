@@ -65,7 +65,7 @@ class AudioManager {
   private convolver: ConvolverNode | null = null;
 
   private ambientIntervals: number[] = [];
-  private getFrequency(postId: any, themeIdx: number): number {
+  private getFrequency(postId: string | number | undefined, themeIdx: number): number {
     const scale = this.SCALES[themeIdx as keyof typeof this.SCALES] || this.SCALES[1];
     if (postId === undefined) return scale[Math.floor(Math.random() * scale.length)];
     const idNum = typeof postId === 'string' ? 
@@ -102,7 +102,7 @@ class AudioManager {
     }
     return buffer;
   }
-  private async loadAudioBuffer(url: string): Promise<any> {
+  private async loadAudioBuffer(url: string): Promise<AudioBuffer | null> {
     if (!this.ctx) return null;
     try {
       console.log(`[AudioManager] Fetching audio from: ${url}`);
@@ -495,7 +495,7 @@ class AudioManager {
 
       // 3. 随机柴火爆裂声 (Subtle crisp snaps, not thumping)
       const playPop = () => {
-        if (this.isMuted || this.themeIdx !== 2 || !this.ctx) return;
+        if (this.isMuted || this.themeIdx !== 2 || !this.ctx || !this.ambientGain) return;
         
         const now = this.ctx.currentTime;
         const popSrc = this.ctx.createBufferSource();
@@ -533,7 +533,7 @@ class AudioManager {
 
   // ── 交互音效 ──
 
-  playHover(postId = undefined) {
+  playHover(postId?: string | number) {
     this.init();
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
@@ -623,7 +623,7 @@ class AudioManager {
     }
   }
 
-  playClick(postId = undefined) {
+  playClick(postId?: string | number) {
     this.init();
     if (this.isMuted || !this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
