@@ -661,46 +661,34 @@ export default function Home() {
   const preloadAllPosts = useCallback((data: TreeHole[], lang: string) => {
     if (data.length === 0) return;
     prefetchedPostsRef.current = {};
-    
-    // 初始化所有标签的空缓存结构
-    data.forEach((hole) => {
+
+    // 只预加载前 15 个，减少后台负载
+    const toPreload = data.slice(0, 15);
+    toPreload.forEach((hole) => {
       prefetchedPostsRef.current[hole.tag] = { zh: [], en: [] };
     });
 
-    // 串行依次加载，避免并发请求导致 SQLite/LibSQL 数据库性能瓶颈或死锁
+    // 串行加载，每个请求间隔 200ms 避免压垮 Worker
     let p = Promise.resolve();
-    data.forEach((hole) => {
-      p = p.then(() => {
-        return postsApi
-          .list({ tag: hole.tag, page: 1, language: lang })
-          .then((pRes) => {
-            const loadedPosts = pRes.posts || [];
-            if (loadedPosts.length < 7) {
-              const otherLang = lang === "zh" ? "en" : "zh";
-              return postsApi
-                .list({ tag: hole.tag, page: 1, language: otherLang })
-                .then((otherRes) => {
+    toPreload.forEach((hole) => {
+      p = p.then(
+        () =>
+          new Promise<void>((resolve) => {
+            setTimeout(() => {
+              postsApi
+                .list({ tag: hole.tag, page: 1, language: lang })
+                .then((pRes) => {
+                  const loadedPosts = pRes.posts || [];
                   prefetchedPostsRef.current[hole.tag] = {
                     ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
                     [lang]: loadedPosts,
-                    [otherLang]: otherRes.posts || [],
                   };
                 })
-                .catch(() => {
-                  prefetchedPostsRef.current[hole.tag] = {
-                    ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
-                    [lang]: loadedPosts,
-                  };
-                });
-            } else {
-              prefetchedPostsRef.current[hole.tag] = {
-                ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
-                [lang]: loadedPosts,
-              };
-            }
-          })
-          .catch(() => {});
-      });
+                .catch(() => {})
+                .finally(resolve);
+            }, 200);
+          }),
+      );
     });
   }, []);
 
