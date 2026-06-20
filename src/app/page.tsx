@@ -1529,8 +1529,8 @@ export default function Home() {
         clCenterX = clCenterX / c.nodes.length + st.parallaxX * 0.5 + clDriftX;
         clCenterY = clCenterY / c.nodes.length + st.parallaxY * 0.5 + clDriftY;
 
-        // 连接线（深色主题）
-        if (st.spaceT > 0) {
+        // 连接线（仅限星空主题）
+        if (st.spaceT > 0.01) {
           c.connections.forEach((conn) => {
             const aNode = c.nodes[conn.a],
               bNode = c.nodes[conn.b];
@@ -1545,16 +1545,15 @@ export default function Home() {
               bNode.activityBase +
               Math.sin(st.time * 0.15 + bNode.activityPhase) * 0.3;
             const clampedAct = Math.max(0.1, Math.min(1, (aAct + bAct) / 2));
-            const alphaLine = Math.max(
-              0.01,
-              conn.baseAlpha * fade * st.spaceT * clampedAct * 1.5,
-            );
-            ctx.strokeStyle = `rgba(${c.color.join(",")},${alphaLine})`;
-            ctx.lineWidth = 0.9;
-            ctx.beginPath();
-            ctx.moveTo(ax, ay);
-            ctx.lineTo(bx, by);
-            ctx.stroke();
+            const alphaLine = conn.baseAlpha * fade * st.spaceT * clampedAct * 1.5;
+            if (alphaLine > 0.005) {
+              ctx.strokeStyle = `rgba(${c.color.join(",")},${alphaLine})`;
+              ctx.lineWidth = 0.9;
+              ctx.beginPath();
+              ctx.moveTo(ax, ay);
+              ctx.lineTo(bx, by);
+              ctx.stroke();
+            }
           });
         }
 
