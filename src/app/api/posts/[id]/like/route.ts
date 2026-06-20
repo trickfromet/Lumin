@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-// POST /api/posts/[id]/like — 点赞（IP 去重）
+// POST /api/posts/[id]/like — batch insert + count in one roundtrip
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -19,16 +19,9 @@ export async function POST(
     request.headers.get("x-real-ip") ||
     "unknown";
 
-  const existing = await prisma.like.findUnique({
-    where: { ip_postId: { ip, postId } },
-  });
+  // INSERT OR IGNORE via raw SQL — single operation, no duplicate check needed
+  await prisma.$executeRaw`INSERT OR IGNORE INTO "Like" (ip, postId) VALUES (${ip}, ${postId})`;
 
-  if (existing) {
-    return NextResponse.json({ error: "你已经点赞过了" }, { status: 409 });
-  }
-
-  await prisma.like.create({ data: { ip, postId } });
-
-  const count = await prisma.like.count({ where: { postId } });
-  return NextResponse.json({ liked: true, count });
+  const [row] = await prisma.$queryRaw<[{ cnt: number }]>`SELECT COUNT(*) as cnt FROM "Like" WHERE postId = ${postId}`;
+  return NextResponse.json({ liked: true, count: row.cnt });
 }
