@@ -680,10 +680,10 @@ export default function Home() {
               return postsApi
                 .list({ tag: hole.tag, page: 1, language: otherLang })
                 .then((otherRes) => {
-                  const merged = [...loadedPosts, ...(otherRes.posts || [])];
                   prefetchedPostsRef.current[hole.tag] = {
                     ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
-                    [lang]: merged,
+                    [lang]: loadedPosts,
+                    [otherLang]: otherRes.posts || [],
                   };
                 })
                 .catch(() => {
@@ -991,13 +991,15 @@ export default function Home() {
       const pref = localStorage.getItem("langPref");
       if (pref === "zh") {
         initialEnglish = false;
-        setIsEnglishMode(false);
-        document.documentElement.classList.remove("font-english");
-      } else {
+      } else if (pref === "en") {
         initialEnglish = true;
-        setIsEnglishMode(true);
-        document.documentElement.classList.add("font-english");
+      } else {
+        // 无偏好时跟随浏览器语言：中文浏览器默认中文，其余默认英文
+        const browserLang = navigator.language || "";
+        initialEnglish = !browserLang.startsWith("zh");
       }
+      setIsEnglishMode(initialEnglish);
+      document.documentElement.classList.toggle("font-english", initialEnglish);
     } catch {}
 
     const st = stateRef.current;
@@ -1983,35 +1985,12 @@ export default function Home() {
             .list({ tag: currentCategoryName, page: 1, language: targetLang })
             .then((res) => {
               const loadedPosts = res.posts || [];
-              if (loadedPosts.length < 7) {
-                const otherLang = targetLang === "zh" ? "en" : "zh";
-                postsApi
-                  .list({ tag: currentCategoryName, page: 1, language: otherLang })
-                  .then((otherRes) => {
-                    const merged = [...loadedPosts, ...(otherRes.posts || [])];
-                    if (merged.length > 0) {
-                      const randomPost = merged[Math.floor(Math.random() * merged.length)];
-                      setCurrentPost(randomPost);
-                      setPostCache(merged.filter((p) => p.id !== randomPost.id).slice(0, 7));
-                    }
-                    setLoadingPost(false);
-                  })
-                  .catch(() => {
-                    if (loadedPosts.length > 0) {
-                      const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
-                      setCurrentPost(randomPost);
-                      setPostCache(loadedPosts.filter((p) => p.id !== randomPost.id).slice(0, 7));
-                    }
-                    setLoadingPost(false);
-                  });
-              } else {
-                if (loadedPosts.length > 0) {
-                  const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
-                  setCurrentPost(randomPost);
-                  setPostCache(loadedPosts.filter((p) => p.id !== randomPost.id).slice(0, 7));
-                }
-                setLoadingPost(false);
+              if (loadedPosts.length > 0) {
+                const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
+                setCurrentPost(randomPost);
+                setPostCache(loadedPosts.filter((p) => p.id !== randomPost.id).slice(0, 7));
               }
+              setLoadingPost(false);
             })
             .catch(() => setLoadingPost(false));
         }
@@ -2222,45 +2201,17 @@ export default function Home() {
               postsApi.list({ tag: c.tag, page: 1, language: targetLang })
                 .then((res) => {
                   const loadedPosts = res.posts || [];
-                  if (loadedPosts.length < 7) {
-                    const otherLang = targetLang === "zh" ? "en" : "zh";
-                    postsApi.list({ tag: c.tag, page: 1, language: otherLang })
-                      .then((otherRes) => {
-                        const merged = [...loadedPosts, ...(otherRes.posts || [])];
-                        if (merged.length > 0) {
-                          const randomPost = merged[Math.floor(Math.random() * merged.length)];
-                          setCurrentPost(randomPost);
-                          const others = merged.filter((p) => p.id !== randomPost.id);
-                          setPostCache(others.slice(0, 7));
-                        }
-                        prefetchedPostsRef.current[c.tag] = {
-                          ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
-                          [targetLang]: merged,
-                        };
-                        setLoadingPost(false);
-                      })
-                      .catch(() => {
-                        if (loadedPosts.length > 0) {
-                          const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
-                          setCurrentPost(randomPost);
-                          const others = loadedPosts.filter((p) => p.id !== randomPost.id);
-                          setPostCache(others.slice(0, 7));
-                        }
-                        setLoadingPost(false);
-                      });
-                  } else {
-                    if (loadedPosts.length > 0) {
-                      const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
-                      setCurrentPost(randomPost);
-                      const others = loadedPosts.filter((p) => p.id !== randomPost.id);
-                      setPostCache(others.slice(0, 7));
-                    }
-                    prefetchedPostsRef.current[c.tag] = {
-                      ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
-                      [targetLang]: loadedPosts,
-                    };
-                    setLoadingPost(false);
+                  if (loadedPosts.length > 0) {
+                    const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
+                    setCurrentPost(randomPost);
+                    const others = loadedPosts.filter((p) => p.id !== randomPost.id);
+                    setPostCache(others.slice(0, 7));
                   }
+                  prefetchedPostsRef.current[c.tag] = {
+                    ...(prefetchedPostsRef.current[c.tag] || { zh: [], en: [] }),
+                    [targetLang]: loadedPosts,
+                  };
+                  setLoadingPost(false);
                 })
                 .catch(() => {
                   setLoadingPost(false);
@@ -2539,29 +2490,12 @@ export default function Home() {
         .then((res) => {
           if (controller.signal.aborted) return;
           const loadedPosts = res.posts || [];
-          if (loadedPosts.length < 7) {
-            const otherLang = targetLang === "zh" ? "en" : "zh";
-            postsApi
-              .list({ tag, page: 1, language: otherLang })
-              .then((otherRes) => {
-                if (controller.signal.aborted) return;
-                const merged = [...loadedPosts, ...(otherRes.posts || [])];
-                const shuffled = merged.sort(() => Math.random() - 0.5);
-                setPostCache((prev) => {
-                  const ids = new Set(prev.map((p) => p.id));
-                  const fresh = shuffled.filter((p) => !ids.has(p.id));
-                  return [...prev, ...fresh].slice(0, Math.max(count, 7));
-                });
-              })
-              .catch(() => {});
-          } else {
-            const shuffled = [...loadedPosts].sort(() => Math.random() - 0.5);
-            setPostCache((prev) => {
-              const ids = new Set(prev.map((p) => p.id));
-              const fresh = shuffled.filter((p) => !ids.has(p.id));
-              return [...prev, ...fresh].slice(0, Math.max(count, 7));
-            });
-          }
+          const shuffled = [...loadedPosts].sort(() => Math.random() - 0.5);
+          setPostCache((prev) => {
+            const ids = new Set(prev.map((p) => p.id));
+            const fresh = shuffled.filter((p) => !ids.has(p.id));
+            return [...prev, ...fresh].slice(0, Math.max(count, 7));
+          });
         })
         .catch(() => {});
     },
@@ -2586,22 +2520,10 @@ export default function Home() {
     const targetLang = isEnglishMode ? "en" : "zh";
     postsApi.list({ tag: currentCategoryName, page: 1, language: targetLang }).then((res) => {
       const loadedPosts = res.posts || [];
-      if (loadedPosts.length < 7) {
-        const otherLang = targetLang === "zh" ? "en" : "zh";
-        postsApi.list({ tag: currentCategoryName, page: 1, language: otherLang }).then((otherRes) => {
-          const merged = [...loadedPosts, ...(otherRes.posts || [])];
-          if (merged.length > 0) {
-            const randomPost = merged[Math.floor(Math.random() * merged.length)];
-            setCurrentPost(randomPost);
-            setPostCache(merged.filter((p) => p.id !== randomPost.id).slice(0, 7));
-          }
-        }).catch(() => {});
-      } else {
-        if (loadedPosts.length > 0) {
-          const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
-          setCurrentPost(randomPost);
-          setPostCache(loadedPosts.filter((p) => p.id !== randomPost.id).slice(0, 7));
-        }
+      if (loadedPosts.length > 0) {
+        const randomPost = loadedPosts[Math.floor(Math.random() * loadedPosts.length)];
+        setCurrentPost(randomPost);
+        setPostCache(loadedPosts.filter((p) => p.id !== randomPost.id).slice(0, 7));
       }
     }).catch(() => {});
   }, [currentCategoryName, postCache, preloadPosts, isEnglishMode]);
