@@ -386,6 +386,95 @@ class CosmicWhisperText implements CanvasEffect {
   }
 }
 
+class CampfireEmber implements CanvasEffect {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
+  colorCore: string;
+  colorEdge: string;
+  opacity: number;
+  startTime: number;
+  duration: number;
+  swaySpeed: number;
+  swayWidth: number;
+  swayPhase: number;
+
+  constructor(x: number, y: number) {
+    this.x = x;
+    this.y = y;
+    this.startTime = performance.now();
+    this.duration = 1500 + Math.random() * 800; // 1.5s - 2.3s
+    this.r = 1.0 + Math.random() * 2.5;
+    this.opacity = 0.7 + Math.random() * 0.3;
+    
+    // 向上漂浮的速度（模拟篝火热气流）
+    this.vy = -1.5 - Math.random() * 2.5;
+    // 初始横向微弱速度
+    this.vx = (Math.random() - 0.5) * 1.0;
+    
+    // 摆动参数 (正弦波模拟微风中的火星抖动)
+    this.swaySpeed = 0.003 + Math.random() * 0.004;
+    this.swayWidth = 10 + Math.random() * 20;
+    this.swayPhase = Math.random() * Math.PI * 2;
+    
+    // 温暖的火星/碳火配色
+    const rVal = 230 + Math.floor(Math.random() * 25); // 230 - 255
+    const gVal = 90 + Math.floor(Math.random() * 90);   // 90 - 180 (橙到金黄)
+    const bVal = 20 + Math.floor(Math.random() * 30);   // 20 - 50
+    this.colorCore = `rgba(255, 220, 100, `; // 明亮白热核心
+    this.colorEdge = `rgba(${rVal}, ${gVal}, ${bVal}, `; // 橙红边缘
+  }
+
+  update(now: number): boolean {
+    const elapsed = now - this.startTime;
+    if (elapsed >= this.duration || this.opacity <= 0) {
+      return false;
+    }
+    
+    // 向上升腾并应用横向微风摇曳
+    this.y += this.vy;
+    this.x += this.vx + Math.sin(now * this.swaySpeed + this.swayPhase) * 0.8;
+    
+    // 随着时间微弱向上加速 (模拟火堆热上升气流)
+    this.vy -= 0.02;
+    
+    // 随着生命期自然淡出
+    const progress = elapsed / this.duration;
+    this.opacity = 1.0 - progress;
+    return true;
+  }
+
+  draw(ctx: CanvasRenderingContext2D) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    
+    // 绘制羽化的火星光晕
+    const glowR = this.r * (3.0 + Math.sin(performance.now() * 0.01) * 0.5);
+    const grad = ctx.createRadialGradient(
+      this.x, this.y, 0,
+      this.x, this.y, glowR
+    );
+    grad.addColorStop(0, this.colorCore + this.opacity + ")");
+    grad.addColorStop(0.5, this.colorEdge + (this.opacity * 0.5) + ")");
+    grad.addColorStop(1, "transparent");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 绘制极小的炽热核心
+    ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity * 0.95})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+}
+
 const ENABLE_INVITE_CODE = false;
 
 export default function Home() {
@@ -1333,15 +1422,9 @@ export default function Home() {
       const dimFactor = typeof window !== "undefined" && window.nebulaBgDimFactor !== undefined ? window.nebulaBgDimFactor : 1.0;
       ctx.globalAlpha = dimFactor;
 
-      // 用 CSS blur filter 代替极其缓慢的 ctx.filter，实现完全由 GPU 合成器加速的高性能背景模糊
-      if (canvas) {
-        if (st.isTransitioning && st.transitionTarget && st.themeIdx !== 1) {
-          const zoomProgress = Math.max(0, Math.min(1, (st.zoom - 1.0) / 2.5));
-          const blurRadius = zoomProgress * 6.0; // 最大 6px 模糊
-          canvas.style.filter = blurRadius > 0.1 ? `blur(${blurRadius.toFixed(1)}px)` : "none";
-        } else {
-          canvas.style.filter = "none";
-        }
+      // 重置画布样式滤镜，避免残留
+      if (canvas && canvas.style.filter !== "none") {
+        canvas.style.filter = "none";
       }
 
       const bgGrad = ctx.createRadialGradient(
@@ -1393,12 +1476,16 @@ export default function Home() {
       // 背景星星（深色主题）
       if (st.spaceT > 0) {
         const darkAlphaMul = st.spaceT;
+        const zoomProgress = st.isTransitioning ? Math.max(0, Math.min(1, (st.zoom - 1.0) / 2.5)) : 0;
+        // 时空穿梭时背景星群逐渐变淡，避免放大的星点破坏视觉清晰度
+        const transitionFade = 1.0 - zoomProgress * 0.85;
+
         st.bgStars.forEach((s) => {
           const px = st.parallaxX * s.layer * 0.5,
             py = st.parallaxY * s.layer * 0.5;
           const twinkle = Math.sin(st.time * s.twinkleSpeed + s.twinklePhase);
           const alpha =
-            s.baseAlpha * Math.min(1, 0.8 + twinkle * 0.3) * darkAlphaMul;
+            s.baseAlpha * Math.min(1, 0.8 + twinkle * 0.3) * darkAlphaMul * transitionFade;
           ctx.globalAlpha = Math.max(0, alpha) * dimFactor;
           ctx.fillStyle =
             s.warmth > 0.7
@@ -1590,15 +1677,21 @@ export default function Home() {
             const glow = n.currentGlow;
             const brightness = baseAct * ((1 - glow) * twinkleMod + glow * 0.85);
 
-            const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 8);
+            // 让光晕半径与不透明度随着接近而收缩/淡出，保持核心锐利度，避免形成静态模糊气团
+            const zoomProgress = st.isTransitioning ? Math.max(0, Math.min(1, (st.zoom - 1.0) / 2.5)) : 0;
+            const glowR = n.r * (8.0 - 6.5 * zoomProgress);
+            const glowOpBase = 0.6 * (1.0 - 0.4 * zoomProgress);
+            const glowOpacity = Math.max(0, glowOpBase * brightness * starOp);
+
+            const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, glowR);
             g2.addColorStop(
               0,
-              `rgba(${cr},${cg},${cb},${0.6 * brightness * starOp})`,
+              `rgba(${cr},${cg},${cb},${glowOpacity})`,
             );
             g2.addColorStop(1, "transparent");
             ctx.fillStyle = g2;
             ctx.beginPath();
-            ctx.arc(nx, ny, n.r * 8, 0, Math.PI * 2);
+            ctx.arc(nx, ny, glowR, 0, Math.PI * 2);
             ctx.fill();
             ctx.fillStyle = `rgba(255,252,245,${1.0 * brightness * starOp})`;
             ctx.beginPath();
@@ -1607,8 +1700,9 @@ export default function Home() {
 
             if (activity > 0.4) {
               const flare = Math.sin(st.time * n.flareSpeed + n.flarePhase);
+              // 当接近星星（缩放）时，衍射十字星芒随之淡出，展现纯净无瑕的星体核心
               const spikeAlpha =
-                (0.05 + flare * 0.05) * starOp * activity * fade;
+                (0.05 + flare * 0.05) * starOp * activity * fade * (1.0 - zoomProgress);
               const spikeLen = n.r * (3 + flare * 2 + activity * 4);
               ctx.strokeStyle = `rgba(${cr},${cg},${cb},${spikeAlpha})`;
               ctx.lineWidth = 0.5;
@@ -1638,8 +1732,10 @@ export default function Home() {
             const brightness =
               (0.3 + activity * 0.7) * fade * flickerMod;
 
-            // 余烬照亮的隐约树洞阴影
-            const holeR = n.r * 5;
+            const zoomProgress = st.isTransitioning ? Math.max(0, Math.min(1, (st.zoom - 1.0) / 2.5)) : 0;
+
+            // 余烬照亮的隐约树洞阴影，也随接近稍微收拢
+            const holeR = n.r * (5.0 - 3.5 * zoomProgress);
             const holeGlow = ctx.createRadialGradient(
               nx - holeR * 0.3,
               ny,
@@ -1660,15 +1756,20 @@ export default function Home() {
             ctx.arc(nx - holeR * 0.3, ny, holeR * 1.5, 0, Math.PI * 2);
             ctx.fill();
 
-            const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 6);
+            // 同样让篝火主题的星点光晕随着接近而收缩/淡出，保持核心锐利度
+            const glowR = n.r * (6.0 - 4.5 * zoomProgress);
+            const glowOpBase = 0.6 * (1.0 - 0.4 * zoomProgress);
+            const glowOpacity = Math.max(0, glowOpBase * brightness * fireOp);
+
+            const g2 = ctx.createRadialGradient(nx, ny, 0, nx, ny, glowR);
             g2.addColorStop(
               0,
-              `rgba(${cr},${cg},${cb},${0.6 * brightness * fireOp})`,
+              `rgba(${cr},${cg},${cb},${glowOpacity})`,
             );
             g2.addColorStop(1, "transparent");
             ctx.fillStyle = g2;
             ctx.beginPath();
-            ctx.arc(nx, ny, n.r * 6, 0, Math.PI * 2);
+            ctx.arc(nx, ny, glowR, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.fillStyle = `rgba(255,200,100,${0.9 * brightness * fireOp})`;
@@ -1688,20 +1789,19 @@ export default function Home() {
           const avgActivity = clusterTotalActivity / c.nodes.length;
 
           if (st.isMobile) {
-            // 移动端始终显示所有星座标签——悬停跟踪不可靠
-            if (st.greetingDone && !st.anyScreenOpen) {
+            // 移动端始终显示所有星座标签——悬停跟踪不可靠（过渡时隐藏以保持画面纯净）
+            if (st.greetingDone && !st.anyScreenOpen && !st.isTransitioning) {
               label.classList.add("visible");
             } else {
               label.classList.remove("visible");
             }
           } else {
-            const shouldBeVisible = isHovered || avgActivity > 0.65;
+            const shouldBeVisible = !st.isTransitioning && (isHovered || avgActivity > 0.65);
 
             if (shouldBeVisible) {
               if (
                 isHovered &&
                 !label.classList.contains("visible") &&
-                !st.isTransitioning &&
                 st.greetingDone &&
                 !st.anyScreenOpen
               ) {
@@ -1723,34 +1823,52 @@ export default function Home() {
       if (st.isTransitioning && st.transitionTarget && st.themeIdx !== 1) {
         const transElapsed = now - st.transitionStartTime;
         
-        // 生成时空隧道光束 (Warp streaks)
-        if (Math.random() < 0.4) {
-          const streakColor = st.themeIdx === 0 ? [96, 165, 250] : [242, 109, 33];
-          st.activeEffects.push(new WarpSpeedStreak(st.W / 2, st.H / 2, streakColor));
+        // 根据不同主题，生成不同的过渡穿梭特效
+        if (st.themeIdx === 0) {
+          // 星空主题：生成时空隧道光束 (Warp streaks)
+          if (Math.random() < 0.4) {
+            st.activeEffects.push(new WarpSpeedStreak(st.W / 2, st.H / 2, [96, 165, 250]));
+          }
+        } else if (st.themeIdx === 2) {
+          // 篝火主题：生成冉冉上升、横向轻微摆动的温暖柴火爆裂余烬 (Campfire Embers)
+          const spawnCount = Math.random() < 0.6 ? 2 : 1;
+          for (let i = 0; i < spawnCount; i++) {
+            // 70% 的余烬从底部升起，30% 从视口中心附近开始飘荡（制造三维纵深感）
+            const startAtBottom = Math.random() < 0.7;
+            const ex = startAtBottom 
+              ? Math.random() * st.W 
+              : st.W / 2 + (Math.random() - 0.5) * st.W * 0.6;
+            const  ey = startAtBottom 
+              ? st.H + 10 + Math.random() * 20 
+              : st.H / 2 + (Math.random() - 0.5) * st.H * 0.4;
+            st.activeEffects.push(new CampfireEmber(ex,  ey));
+          }
         }
 
-        // 生成低语文字
-        const nextWhisperIdx = Math.floor(transElapsed / 600);
-        if (nextWhisperIdx >= 0 && nextWhisperIdx < 3) {
-          if (!st.whispersSpawned) st.whispersSpawned = [false, false, false];
-          if (!st.whispersSpawned[nextWhisperIdx]) {
-            st.whispersSpawned[nextWhisperIdx] = true;
-            
-            const wordsZh = ["微光", "共鸣", "尘网", "拾遗", "浮生", "幽壑", "求索", "心弦", "回响", "梦影"];
-            const wordsEn = ["whisper", "resonance", "echo", "stardust", "solitude", "seek", "memory", "drift", "light", "dream"];
-            const pool = st.isEnglishMode ? wordsEn : wordsZh;
-            
-            let text = "";
-            const cName = st.transitionCategoryName || "";
-            if (nextWhisperIdx === 0 && cName) {
-              text = st.isEnglishMode ? (CATEGORY_EN_MAP[cName] || cName) : cName;
-            } else {
-              text = pool[Math.floor(Math.random() * pool.length)];
+        // 生成低语文字 (仅限星空主题 themeIdx === 0，篝火主题保持纯净的余烬微尘画面)
+        if (st.themeIdx === 0) {
+          const nextWhisperIdx = Math.floor(transElapsed / 600);
+          if (nextWhisperIdx >= 0 && nextWhisperIdx < 3) {
+            if (!st.whispersSpawned) st.whispersSpawned = [false, false, false];
+            if (!st.whispersSpawned[nextWhisperIdx]) {
+              st.whispersSpawned[nextWhisperIdx] = true;
+              
+              const wordsZh = ["微光", "共鸣", "尘网", "拾遗", "浮生", "幽壑", "求索", "心弦", "回响", "梦影"];
+              const wordsEn = ["whisper", "resonance", "echo", "stardust", "solitude", "seek", "memory", "drift", "light", "dream"];
+              const pool = st.isEnglishMode ? wordsEn : wordsZh;
+              
+              let text = "";
+              const cName = st.transitionCategoryName || "";
+              if (nextWhisperIdx === 0 && cName) {
+                text = st.isEnglishMode ? (CATEGORY_EN_MAP[cName] || cName) : cName;
+              } else {
+                text = pool[Math.floor(Math.random() * pool.length)];
+              }
+              
+              const wx = st.W / 2 + (Math.random() - 0.5) * st.W * 0.4;
+              const wy = st.H / 2 + (Math.random() - 0.5) * st.H * 0.3;
+              st.activeEffects.push(new CosmicWhisperText(wx, wy, text));
             }
-            
-            const wx = st.W / 2 + (Math.random() - 0.5) * st.W * 0.4;
-            const wy = st.H / 2 + (Math.random() - 0.5) * st.H * 0.3;
-            st.activeEffects.push(new CosmicWhisperText(wx, wy, text));
           }
         }
       }
