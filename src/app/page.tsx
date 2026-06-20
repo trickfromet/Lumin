@@ -1887,6 +1887,7 @@ export default function Home() {
     const prevPost = currentPost;
 
     if (currentPost.userHasMetoed) {
+      audio.playUnmetoo();
       // 即时取消共感
       setCurrentPost({
         ...prevPost,
@@ -1909,6 +1910,8 @@ export default function Home() {
             msg.includes("401")
           ) {
             setShowAuth(true);
+          } else if (msg.includes("已经") || msg.includes("already")) {
+            // 忽略延迟导致重复操作的“已经表达过”提示
           } else {
             showToast(msg, "error");
           }
@@ -1937,6 +1940,8 @@ export default function Home() {
             msg.includes("401")
           ) {
             setShowAuth(true);
+          } else if (msg.includes("已经") || msg.includes("already")) {
+            // 忽略延迟导致重复操作的“已经表达过”提示
           } else {
             showToast(msg, "error");
           }

@@ -929,6 +929,55 @@ class AudioManager {
     }
   }
 
+  playUnmetoo() {
+    this.init();
+    if (this.isMuted || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    if (this.themeIdx === 0) {
+      // 星空Unmetoo：下行音调 (0.4s)
+      const ctx = this.ctx;
+      [0, 0.12].forEach((delay, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(900 - i * 200, now + delay);
+        gain.gain.setValueAtTime(0.015, now + delay);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.15);
+        osc.connect(gain);
+        gain.connect(this.convolver!);
+        osc.start(now + delay);
+        osc.stop(now + delay + 0.15);
+      });
+    } else if (this.themeIdx === 2) {
+      // 篝火Unmetoo：更轻微的爆裂/消退声
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(100, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.25);
+      gain.gain.setValueAtTime(0.05, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(gain);
+      gain.connect(this.convolver!);
+      osc.start();
+      osc.stop(now + 0.25);
+    } else {
+      // 水面Unmetoo：低沉一点的水泡声
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(80, now);
+      osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start();
+      osc.stop(now + 0.4);
+    }
+  }
+
   // 情绪点缀音 (长停留触发)
   playLongStayEvent() {
     this.init();
