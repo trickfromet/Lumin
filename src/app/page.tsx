@@ -47,26 +47,46 @@ const EMOJI_LIST = [
 ];
 
 const CATEGORY_EN_MAP: Record<string, string> = {
-  // 分类器产出
-  心弦: "Heartstrings",
-  求索: "Quest",
-  尘网: "Dust Net",
-  屋檐: "Eaves",
-  浮生: "Floating Life",
-  幽壑: "Abyss",
-  拾遗: "Found",
-  碎语: "Whispers",
-  长卷: "Scroll",
-  // 兼容旧数据
-  情感: "Feelings",
-  问答: "Q&A",
-  工作: "Work",
-  家庭: "Family",
-  日常: "Daily",
-  社交: "Social",
-  心情: "Mood",
-  随笔: "Notes",
-  吐槽: "Rants",
+  暗恋: "Secret Crush",
+  失恋: "Heartbreak",
+  异地: "Long Distance",
+  单身: "Being Single",
+  暧昧: "Situationship",
+  友情: "Friendship",
+  婚姻: "Marriage",
+  分手: "Breakup",
+  考研: "Grad Exam",
+  高考: "Gaokao",
+  留学: "Study Abroad",
+  论文: "Thesis",
+  毕业: "Graduation",
+  加班: "Overtime",
+  辞职: "Resignation",
+  面试: "Job Interview",
+  内卷: "Rat Race",
+  创业: "Startup",
+  裁员: "Layoff",
+  父母: "Parents",
+  催婚: "Marriage Push",
+  亲子: "Parenting",
+  原生家庭: "Family Origin",
+  婆媳: "In-Laws",
+  独居: "Living Alone",
+  宠物: "Pets",
+  美食: "Food",
+  旅行: "Travel",
+  失眠: "Insomnia",
+  租房: "Renting",
+  搬家: "Moving",
+  焦虑: "Anxiety",
+  抑郁: "Depression",
+  孤独: "Loneliness",
+  迷茫: "Feeling Lost",
+  治愈: "Healing",
+  自卑: "Insecurity",
+  疾病: "Illness",
+  生死: "Life & Death",
+  负债: "Debt",
 };
 
 function tCategory(
@@ -1852,7 +1872,7 @@ export default function Home() {
             if (!st.whispersSpawned[nextWhisperIdx]) {
               st.whispersSpawned[nextWhisperIdx] = true;
               
-              const wordsZh = ["微光", "共鸣", "尘网", "拾遗", "浮生", "幽壑", "求索", "心弦", "回响", "梦影"];
+              const wordsZh = ["微光", "共鸣", "职场", "杂谈", "生活", "心绪", "学业", "情感", "回响", "梦影"];
               const wordsEn = ["whisper", "resonance", "echo", "stardust", "solitude", "seek", "memory", "drift", "light", "dream"];
               const pool = st.isEnglishMode ? wordsEn : wordsZh;
               
@@ -3124,7 +3144,30 @@ export default function Home() {
             <div className="notif-marker" style={{ display: "none" }} />
             <div className="top-auth">
               {currentUser ? (
-                <button className="top-auth-btn" onClick={handleLogout}>
+                <>
+                  <button
+                    className="top-auth-btn"
+                    onClick={() => {
+                      setFeedbackOpen(true);
+                      setSettingsVisible(true);
+                    }}
+                    aria-label={t("反馈", "Feedback")}
+                    title={t("快捷反馈", "Quick Feedback")}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      width="16"
+                      height="16"
+                    >
+                      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                    </svg>
+                  </button>
+                  <button className="top-auth-btn" onClick={handleLogout}>
                   <svg
                     viewBox="0 0 24 24"
                     fill="none"
@@ -3141,6 +3184,7 @@ export default function Home() {
                   </svg>
                   <span>{t("登出", "Logout")}</span>
                 </button>
+                </>
               ) : (
                 <button
                   className="top-auth-btn"
@@ -4587,6 +4631,14 @@ export default function Home() {
                 <div className="settings-item">
                   <span>{t("当前版本", "Version")}</span>
                   <div className="settings-item-val">v 1.0.2</div>
+                </div>
+                <div
+                  className="settings-item"
+                  onClick={() => window.open("https://ifdian.net/a/Miuzg", "_blank")}
+                  style={{ cursor: "pointer" }}
+                >
+                  <span>{t("请作者喝杯咖啡", "Buy me a Coffee")}</span>
+                  <div className="settings-item-val">☕</div>
                 </div>
               </div>
             </div>
