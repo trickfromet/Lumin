@@ -3628,28 +3628,28 @@ export default function Home() {
                     ))}
                   </div>
                 )}
+                <div className="compose-privacy-controls" style={{ marginTop: 12, display: "flex", gap: 20 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--warm-faint)", fontSize: 13 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={allowComments} 
+                      onChange={(e) => setAllowComments(e.target.checked)}
+                      style={{ cursor: "pointer" }}
+                    />
+                    {t("允许评论", "Allow comments")}
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--warm-faint)", fontSize: 13 }}>
+                    <input 
+                      type="checkbox" 
+                      checked={allowStrangerComments} 
+                      onChange={(e) => setAllowStrangerComments(e.target.checked)}
+                      style={{ cursor: "pointer" }}
+                    />
+                    {t("允许陌生人回复", "Allow strangers to reply")}
+                  </label>
+                </div>
               </div>
             </div>
-                          <div className="compose-privacy-controls" style={{ marginTop: 20, display: "flex", gap: 20 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--warm-faint)", fontSize: 13 }}>
-                  <input 
-                    type="checkbox" 
-                    checked={allowComments} 
-                    onChange={(e) => setAllowComments(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  {t("允许评论", "Allow comments")}
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: "var(--warm-faint)", fontSize: 13 }}>
-                  <input 
-                    type="checkbox" 
-                    checked={allowStrangerComments} 
-                    onChange={(e) => setAllowStrangerComments(e.target.checked)}
-                    style={{ cursor: "pointer" }}
-                  />
-                  {t("允许陌生人回复", "Allow strangers to reply")}
-                </label>
-              </div>
             <div className="compose-footer">
               <div className="compose-char">
                 <span>{composeText.length}</span> / 800
