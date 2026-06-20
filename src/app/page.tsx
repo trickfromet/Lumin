@@ -660,35 +660,36 @@ export default function Home() {
 
   const preloadAllPosts = useCallback((data: TreeHole[], lang: string) => {
     if (data.length === 0) return;
+
+    // 中断上一次预加载
+    if (preloadControllerRef.current) {
+      preloadControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    preloadControllerRef.current = controller;
+
     prefetchedPostsRef.current = {};
 
-    // 只预加载前 15 个，减少后台负载
+    // 只预加载前 15 个
     const toPreload = data.slice(0, 15);
     toPreload.forEach((hole) => {
       prefetchedPostsRef.current[hole.tag] = { zh: [], en: [] };
     });
 
-    // 串行加载，每个请求间隔 200ms 避免压垮 Worker
+    // 串行依次加载（无延迟，但受 AbortController 控制）
     let p = Promise.resolve();
     toPreload.forEach((hole) => {
-      p = p.then(
-        () =>
-          new Promise<void>((resolve) => {
-            setTimeout(() => {
-              postsApi
-                .list({ tag: hole.tag, page: 1, language: lang })
-                .then((pRes) => {
-                  const loadedPosts = pRes.posts || [];
-                  prefetchedPostsRef.current[hole.tag] = {
-                    ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
-                    [lang]: loadedPosts,
-                  };
-                })
-                .catch(() => {})
-                .finally(resolve);
-            }, 200);
-          }),
-      );
+      p = p.then(async () => {
+        if (controller.signal.aborted) return;
+        try {
+          const res = await postsApi.list({ tag: hole.tag, page: 1, language: lang });
+          if (controller.signal.aborted) return;
+          prefetchedPostsRef.current[hole.tag] = {
+            ...(prefetchedPostsRef.current[hole.tag] || { zh: [], en: [] }),
+            [lang]: res.posts || [],
+          };
+        } catch {}
+      });
     });
   }, []);
 
@@ -1091,6 +1092,9 @@ export default function Home() {
 
     return () => {
       active = false;
+      if (preloadControllerRef.current) {
+        preloadControllerRef.current.abort();
+      }
     };
   }, [isEnglishMode, preloadAllPosts, createLabels]);
 
