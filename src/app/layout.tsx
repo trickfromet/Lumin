@@ -12,8 +12,8 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "树洞 — 星空与水面",
-  description: "匿名树洞网站 — 在星空与水面之间，倾诉心事",
+  title: "Lumin — 心事如星",
+  description: "把说不出口的话，变成一颗星。匿名倾诉，在星空下被看见，被懂得。",
 };
 
 export default function RootLayout({

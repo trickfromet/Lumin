@@ -3204,20 +3204,46 @@ export default function Home() {
 
           <div className="bottom-bar">
             <button className="nav-item active" onClick={closeAllScreens}>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 12l9-8 9 8" />
-                <path d="M5 10v10a1 1 0 001 1h4v-6h4v6h4a1 1 0 001-1V10" />
-              </svg>
+              {themeIdx === 0 ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  {/* helmet visor */}
+                  <path d="M8 10c0-3 2-5 4-5s4 2 4 5v2a4 3 0 01-8 0v-2z" />
+                  {/* antenna */}
+                  <path d="M12 3v1M10 1l2 2M14 1l-2 2" />
+                  {/* body / backpack */}
+                  <rect x="7" y="13" width="10" height="8" rx="2" />
+                  <rect x="6" y="14" width="3" height="6" rx="1" />
+                  {/* belt */}
+                  <line x1="8" y1="17" x2="16" y2="17" />
+                </svg>
+              ) : themeIdx === 1 ? (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  {/* hull */}
+                  <path d="M4 19l2-8h12l2 8H4z" />
+                  {/* mast */}
+                  <line x1="12" y1="2" x2="12" y2="11" />
+                  {/* sail */}
+                  <path d="M12 3l-6 7h6V3z" />
+                  {/* water line */}
+                  <path d="M2 20h20" opacity="0.5" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  {/* outer flame */}
+                  <path d="M12 2c-1 3-3 6-3 9 0 2 1 4 3 5s3-3 3-5c0-3-2-6-3-9z" />
+                  {/* inner flame */}
+                  <path d="M12 5c-.5 2-1.5 4-1.5 6 0 1 .5 2 1.5 3s1.5-2 1.5-3c0-2-1-4-1.5-6z" fill="currentColor" fillOpacity="0.3" />
+                  {/* logs */}
+                  <line x1="6" y1="19" x2="18" y2="19" />
+                  <line x1="8" y1="21" x2="16" y2="21" />
+                  {/* spark */}
+                  <circle cx="14" cy="3" r="0.8" fill="currentColor" />
+                  <circle cx="9" cy="4" r="0.6" fill="currentColor" />
+                </svg>
+              )}
               <span>
-                <span className="hidden md:inline">{t("广场", "Square")}</span>
-                <span className="inline md:hidden">{t("广场", "S")}</span>
+                <span className="hidden md:inline">{themeIdx === 0 ? t("星辰", "Space") : themeIdx === 1 ? t("水面", "Water") : t("篝火", "Fire")}</span>
+                <span className="inline md:hidden">{themeIdx === 0 ? t("星", "S") : themeIdx === 1 ? t("水", "W") : t("火", "F")}</span>
               </span>
             </button>
             <button className="nav-item" onClick={openCompose}>
