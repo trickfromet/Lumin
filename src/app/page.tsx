@@ -654,6 +654,17 @@ export default function Home() {
     [],
   );
 
+  const friendlyError = useCallback(
+    (e: unknown): string => {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg === "SERVER_BUSY" || msg.includes("Worker exceeded") || msg.includes("Cloudflare")) {
+        return t("服务器繁忙，请稍后再试", "Server busy, please retry later");
+      }
+      return msg || t("出了点问题，请稍后再试", "Something went wrong, please retry");
+    },
+    [t],
+  );
+
   const greetingPlayedRef = useRef(false);
   const longStayTimeoutRef = useRef<number | null>(null);
   const userManuallySwitchedRef = useRef(false);
@@ -2392,14 +2403,11 @@ export default function Home() {
         }
       })
       .catch((e: unknown) => {
-        const msg =
-          e instanceof Error
-            ? e.message
-            : t(t("发布失败", "Post failed"), "Post failed");
-        const isViolation = msg.includes("违规") || msg.includes("封禁");
-        showToast(msg, isViolation ? "error" : "info");
+        const raw = e instanceof Error ? e.message : "";
+        const isViolation = raw.includes("违规") || raw.includes("封禁");
+        showToast(friendlyError(e), isViolation ? "error" : "info");
       });
-  }, [composeText, closeAllScreens, showToast, t, allowComments, allowStrangerComments]);
+  }, [composeText, closeAllScreens, showToast, friendlyError, allowComments, allowStrangerComments]);
 
   // ── 共感（我也是）──
   const handleEmpathy = useCallback(() => {
@@ -2433,7 +2441,7 @@ export default function Home() {
           } else if (msg.includes("已经") || msg.includes("already")) {
             // 忽略延迟导致重复操作的“已经表达过”提示
           } else {
-            showToast(msg, "error");
+            showToast(friendlyError(e), "error");
           }
         });
     } else {
@@ -2463,11 +2471,11 @@ export default function Home() {
           } else if (msg.includes("已经") || msg.includes("already")) {
             // 忽略延迟导致重复操作的“已经表达过”提示
           } else {
-            showToast(msg, "error");
+            showToast(friendlyError(e), "error");
           }
         });
     }
-  }, [currentPost, showToast]);
+  }, [currentPost, showToast, friendlyError]);
 
   // ── 预加载故事到缓存 ──
   const preloadPosts = useCallback(
@@ -2568,10 +2576,9 @@ export default function Home() {
       setEditingNickname(false);
       showToast(t("昵称已更新", "Nickname updated"), "info");
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : t("更新失败", "Update failed");
-      showToast(msg, "error");
+      showToast(friendlyError(e), "error");
     }
-  }, [nicknameInput, currentUser, showToast, t]);
+  }, [nicknameInput, currentUser, showToast, friendlyError, t]);
 
   // ── 退出登录 ──
   const handleLogout = useCallback(async () => {
@@ -3843,14 +3850,7 @@ export default function Home() {
                           setCurrentUser((prev) =>
                             prev ? { ...prev, backgroundUrl: prevUrl } : prev,
                           );
-                          const msg =
-                            err instanceof Error
-                              ? err.message
-                              : t(
-                                  t("上传失败", "Upload failed"),
-                                  "Upload failed",
-                                );
-                          showToast(msg, "error");
+                          showToast(friendlyError(err), "error");
                         });
                     }}
                   />
@@ -3969,10 +3969,7 @@ export default function Home() {
                           setCurrentUser((prev) =>
                             prev ? { ...prev, avatarUrl: prevUrl } : prev,
                           );
-                          showToast(
-                            err instanceof Error ? err.message : "上传失败",
-                            "error",
-                          );
+                          showToast(friendlyError(err), "error");
                         });
                     }}
                   />

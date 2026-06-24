@@ -21,11 +21,20 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     // Non-JSON response (likely an error page or empty)
     const text = await res.text();
     if (!res.ok) {
+      // CloudFlare Worker 限制 → 友好提示
+      if (text.includes("Worker exceeded resource limits") || text.includes("Cloudflare")) {
+        throw new Error("SERVER_BUSY");
+      }
       throw new Error(text || `请求失败 (状态码: ${res.status})`);
     }
     data = {} as T;
   }
   if (!res.ok) {
+    if (data?.error && typeof data.error === "string" && (
+      data.error.includes("exceeded") || data.error.includes("resource") || data.error.includes("limit")
+    )) {
+      throw new Error("SERVER_BUSY");
+    }
     throw new Error(data?.error || `请求失败 (状态码: ${res.status})`);
   }
 
