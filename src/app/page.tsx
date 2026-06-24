@@ -87,6 +87,9 @@ const CATEGORY_EN_MAP: Record<string, string> = {
   疾病: "Illness",
   生死: "Life & Death",
   负债: "Debt",
+  浮光: "Glimmers",
+  絮语: "Whispers",
+  长夜: "Long Night",
 };
 
 function tCategory(

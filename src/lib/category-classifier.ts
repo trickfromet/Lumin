@@ -1,8 +1,8 @@
 import sensitiveWords from "@/data/sensitive-words.json";
 
-export const DEFAULT_TREEHOLE_TAG = "独居";
-const DEFAULT_SHORT_TAG = "独居";
-const DEFAULT_LONG_TAG = "迷茫";
+export const DEFAULT_TREEHOLE_TAG = "浮光";
+const DEFAULT_SHORT_TAG = "絮语";
+const DEFAULT_LONG_TAG = "长夜";
 const TAG_MAX_LENGTH = 20;
 
 const CATEGORY_SYNONYMS: Record<string, string[]> = {
