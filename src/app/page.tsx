@@ -3180,7 +3180,7 @@ export default function Home() {
             <div className="greeting-text" id="greetMain">
               {themeIdx === 0
                 ? t(
-                    "心事了吗？这里有人",
+                    "有心事吗？这里有人",
                     "Is something on your mind? We are here.",
                   )
                 : themeIdx === 1
